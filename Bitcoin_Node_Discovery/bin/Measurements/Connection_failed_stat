@@ -1,0 +1,2 @@
+ConnectionException("timeout('timed out',)",) : 11
+ConnectionException("OSError(113, 'No route to host')",) : 1

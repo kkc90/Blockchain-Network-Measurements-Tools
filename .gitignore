@@ -1,0 +1,6 @@
+Bitcoin_Node_Discovery/Backup/*
+Bitcoin_Node_Discovery/bin/GeoLite2-City/*
+Bitcoin_Node_Discovery/Test/Full_Manager_Implementation/GeoLite2-City/*
+Bitcoin_Node_Discovery/Test/No_Manager_Implementation/GeoLite2-City/*
+Bitcoin_Node_Discovery/Test/Measurements_Manager_Implementation/GeoLite2-City/*
+Bitcoin_Node_Discovery/Test/IP_Manager_Implementation/GeoLite2-City/*

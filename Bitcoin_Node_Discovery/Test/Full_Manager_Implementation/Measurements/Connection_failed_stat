@@ -1,0 +1,5 @@
+ConnectionException("timeout('timed out',)",) : 254
+ConnectionException("ConnectionRefusedError(111, 'Connection refused')",) : 32
+HandShakeFailureException('HandShakeFailure Exception : Fail to receive the VERSION/VERACK Messages from the peer (Timeout).',) : 19
+HandShakeFailureException('HandShakeFailure Exception : Fail to send the VERACK Message to the peer (Timeout).',) : 2
+ConnectionException("OSError(113, 'No route to host')",) : 8

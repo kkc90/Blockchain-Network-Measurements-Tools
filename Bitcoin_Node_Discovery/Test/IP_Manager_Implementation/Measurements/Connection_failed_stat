@@ -1,0 +1,7 @@
+ConnectionException("timeout('timed out',)",) : 964
+HandShakeFailureException('HandShakeFailure Exception : Fail to receive the VERSION/VERACK Messages from the peer (Timeout).',) : 48
+ConnectionException("ConnectionRefusedError(111, 'Connection refused')",) : 102
+ConnectionException("OSError(113, 'No route to host')",) : 36
+HandShakeFailureException('HandShakeFailure Exception : Fail to send a Version Message to the peer (Timeout).',) : 1
+DisconnectedSocketException('Receive Message Failure Exception : Fail to Receive a Message from the peer (Broken Socket).',) : 1
+ConnectionException("OSError(101, 'Network is unreachable')",) : 1
