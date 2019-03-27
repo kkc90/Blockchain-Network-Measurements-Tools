@@ -23,7 +23,7 @@ class P2P_Connection:
     HANDSHAKE_TIMEOUT = 1
 
     # Number of Attempts
-    CONNECTION_MAX_ATTEMPTS = 2
+    CONNECTION_MAX_ATTEMPTS = 1
     ADDR_QUERY_MAX_ATTEMPTS = 2
     ASK_ALIVE_MAX_ATTEMPTS = 3
 

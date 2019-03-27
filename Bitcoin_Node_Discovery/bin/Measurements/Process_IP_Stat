@@ -1,45 +1,146 @@
 Process  0 : 
-  0 peers queried in 7.805579900741577 seconds.
-  -1 peers queried in 2.1099056005477905 seconds.
+  0 peers queried in 11.411190708478292 seconds.
+  -1 peers queried in 1.2047404465226017 seconds.
+  1000 peers queried in 17.37720129489899 seconds.
+  1001 peers queried in 18.588240385055542 seconds.
+  1 peers queried in 3.618622660636902 seconds.
 Process  1 : 
-  1000 peers queried in 11.9533851146698 seconds.
+  0 peers queried in 12.283316284418106 seconds.
+  -1 peers queried in 1.1737896241850923 seconds.
+  1000 peers queried in 26.99271974196801 seconds.
+  14 peers queried in 19.6283540725708 seconds.
+  1 peers queried in 30.21990466117859 seconds.
 Process  2 : 
-  0 peers queried in 7.302711009979248 seconds.
-  -1 peers queried in 1.4280822277069092 seconds.
+  0 peers queried in 12.835344874340555 seconds.
+  -1 peers queried in 1.2431074400600797 seconds.
+  1000 peers queried in 17.216368436813354 seconds.
+  1 peers queried in 12.11783492565155 seconds.
 Process  3 : 
-  0 peers queried in 7.42509126663208 seconds.
-  -1 peers queried in 2.561984896659851 seconds.
+  0 peers queried in 12.336401411465237 seconds.
+  1000 peers queried in 24.649074009486608 seconds.
+  -1 peers queried in 1.2824935063937486 seconds.
+  1 peers queried in 9.949144840240479 seconds.
 Process  4 : 
-  0 peers queried in 7.15466570854187 seconds.
-  -1 peers queried in 4.0885233879089355 seconds.
+  0 peers queried in 13.650668850966863 seconds.
+  -1 peers queried in 1.1821061415125793 seconds.
+  1 peers queried in 2.050443172454834 seconds.
+  1000 peers queried in 18.301620841026306 seconds.
+  51 peers queried in 7.902215480804443 seconds.
 Process  5 : 
-  0 peers queried in 8.028096199035645 seconds.
-  -1 peers queried in 2.9892616271972656 seconds.
+  0 peers queried in 12.858118049029645 seconds.
+  -1 peers queried in 1.3119198861818495 seconds.
+  1000 peers queried in 23.64568131620234 seconds.
+  1 peers queried in 9.501249194145203 seconds.
+  1001 peers queried in 29.58961534500122 seconds.
 Process  6 : 
-  1000 peers queried in 9.044307708740234 seconds.
-  -1 peers queried in 1.9841046333312988 seconds.
+  0 peers queried in 10.96457161647933 seconds.
+  -1 peers queried in 1.1577287946918553 seconds.
+  1000 peers queried in 21.325781015249397 seconds.
+  1 peers queried in 11.658818006515503 seconds.
 Process  7 : 
-  0 peers queried in 7.002015590667725 seconds.
-  -1 peers queried in 2.690828561782837 seconds.
+  0 peers queried in 13.47945335706075 seconds.
+  -1 peers queried in 1.0972887057726108 seconds.
+  1000 peers queried in 23.56921252337369 seconds.
+  1 peers queried in 16.15290927886963 seconds.
 Process  8 : 
-  0 peers queried in 9.041391849517822 seconds.
-  -1 peers queried in 1.5020127296447754 seconds.
+  0 peers queried in 12.331584193876811 seconds.
+  -1 peers queried in 1.1524581501626603 seconds.
+  1000 peers queried in 18.768520483603844 seconds.
+  1 peers queried in 6.266566038131714 seconds.
 Process  9 : 
-  0 peers queried in 8.551413297653198 seconds.
-  -1 peers queried in 2.4746880531311035 seconds.
+  0 peers queried in 12.112262836524419 seconds.
+  5001 peers queried in 71.78757381439209 seconds.
+  -1 peers queried in 1.2930117833686474 seconds.
+  1002 peers queried in 20.14631676673889 seconds.
+  1000 peers queried in 26.450991067019377 seconds.
+Process  10 : 
+  0 peers queried in 13.02772628654868 seconds.
+  -1 peers queried in 1.2738742373708096 seconds.
+  1000 peers queried in 21.266115999221803 seconds.
+  1 peers queried in 4.628730535507202 seconds.
+Process  11 : 
+  0 peers queried in 11.918451202449514 seconds.
+  1000 peers queried in 18.84334052933587 seconds.
+  -1 peers queried in 1.2640101257747174 seconds.
+  1 peers queried in 4.355552077293396 seconds.
+Process  12 : 
+  0 peers queried in 12.652692575923732 seconds.
+  -1 peers queried in 1.247359395125642 seconds.
+  20001 peers queried in 60.68063426017761 seconds.
+  1000 peers queried in 21.35412553378514 seconds.
+  1 peers queried in 21.60695254802704 seconds.
+  29 peers queried in 10.878230810165405 seconds.
+  1001 peers queried in 15.141589641571045 seconds.
+Process  13 : 
+  0 peers queried in 13.131079133599997 seconds.
+  -1 peers queried in 1.2761217680254773 seconds.
+  1000 peers queried in 24.73667976856232 seconds.
+Process  14 : 
+  0 peers queried in 12.306412100791931 seconds.
+  -1 peers queried in 1.2445596724229178 seconds.
+  18000 peers queried in 119.46459126472473 seconds.
+  1000 peers queried in 20.878451930152046 seconds.
+  1001 peers queried in 16.706575632095337 seconds.
+Process  15 : 
+  0 peers queried in 11.59174516694299 seconds.
+  -1 peers queried in 1.2629072737521503 seconds.
+  1000 peers queried in 15.594807338714599 seconds.
+  1 peers queried in 2.062427520751953 seconds.
+  2000 peers queried in 13.275606632232666 seconds.
+Process  16 : 
+  0 peers queried in 13.285338378721669 seconds.
+  -1 peers queried in 1.3005731910300065 seconds.
+  1 peers queried in 14.271628975868225 seconds.
+  1000 peers queried in 20.253319415179167 seconds.
+Process  17 : 
+  0 peers queried in 13.722456006861444 seconds.
+  58 peers queried in 3.5125415325164795 seconds.
+  -1 peers queried in 1.2228933913670408 seconds.
+  1000 peers queried in 14.214430161884852 seconds.
+Process  18 : 
+  0 peers queried in 12.224887301371648 seconds.
+  -1 peers queried in 1.3125836587146744 seconds.
+  1000 peers queried in 24.35273615519206 seconds.
+  1 peers queried in 2.822557806968689 seconds.
+Process  19 : 
+  0 peers queried in 12.696969253676277 seconds.
+  -1 peers queried in 1.3278066512350253 seconds.
+  1000 peers queried in 20.31247091293335 seconds.
+  1 peers queried in 12.794286727905273 seconds.
 
-Process  0 : 0.0 seconds per peer, per process.
-Process  1 : 0.0119533851146698 seconds per peer, per process.
-Process  2 : 0.0 seconds per peer, per process.
-Process  3 : 0.0 seconds per peer, per process.
-Process  4 : 0.0 seconds per peer, per process.
-Process  5 : 0.0 seconds per peer, per process.
-Process  6 : 0.004522153854370117 seconds per peer, per process.
-Process  7 : 0.0 seconds per peer, per process.
-Process  8 : 0.0 seconds per peer, per process.
-Process  9 : 0.0 seconds per peer, per process.
-Average process time : 0.0016475538969039916 seconds per peer.
+Process  0 : 0.7309139065292285 seconds per peer, per process.
+Process  1 : 6.329784534363695 seconds per peer, per process.
+Process  2 : 3.033762823522091 seconds per peer, per process.
+Process  3 : 2.4934484785624913 seconds per peer, per process.
+Process  4 : 0.44473803897605224 seconds per peer, per process.
+Process  5 : 1.9108909861502235 seconds per peer, per process.
+Process  6 : 2.920035946882688 seconds per peer, per process.
+Process  7 : 4.0441196228482506 seconds per peer, per process.
+Process  8 : 1.5713336396538293 seconds per peer, per process.
+Process  9 : 0.012182347891750923 seconds per peer, per process.
+Process  10 : 1.162499162876606 seconds per peer, per process.
+Process  11 : 1.093598854455683 seconds per peer, per process.
+Process  12 : 3.145939774857901 seconds per peer, per process.
+Process  13 : 0.008245559922854107 seconds per peer, per process.
+Process  14 : 0.008841051882686038 seconds per peer, per process.
+Process  15 : 0.41693202628135684 seconds per peer, per process.
+Process  16 : 3.572970573820851 seconds per peer, per process.
+Process  17 : 0.01869387276683535 seconds per peer, per process.
+Process  18 : 0.7117276357809702 seconds per peer, per process.
+Process  19 : 3.203649799704552 seconds per peer, per process.
+Average process time : 1.8417154318865296 seconds per peer.
 
-0 peers queried in 7.788870602846146 seconds on average.
--1 peers queried in 2.4254879686567516 seconds on average.
-1000 peers queried in 10.498846411705017 seconds on average.
+0 peers queried in 12.541033479476393 seconds on average.
+-1 peers queried in 1.2415666921835098 seconds on average.
+1000 peers queried in 21.005182423730158 seconds on average.
+1001 peers queried in 20.006505250930786 seconds on average.
+1 peers queried in 10.254851810634136 seconds on average.
+14 peers queried in 19.6283540725708 seconds on average.
+51 peers queried in 7.902215480804443 seconds on average.
+5001 peers queried in 71.78757381439209 seconds on average.
+1002 peers queried in 20.14631676673889 seconds on average.
+20001 peers queried in 60.68063426017761 seconds on average.
+29 peers queried in 10.878230810165405 seconds on average.
+18000 peers queried in 119.46459126472473 seconds on average.
+2000 peers queried in 13.275606632232666 seconds on average.
+58 peers queried in 3.5125415325164795 seconds on average.

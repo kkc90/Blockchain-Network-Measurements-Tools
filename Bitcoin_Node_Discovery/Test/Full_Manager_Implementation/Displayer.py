@@ -18,17 +18,16 @@ def print_there(x, y, text):
 
 class Displayer(Thread):
 
-    def __init__(self, measurements, measurements_manager, nb_thread, network_to_crawl, display_prog):
+    def __init__(self, measurements_manager, nb_thread, network_to_crawl, display_prog):
         Thread.__init__(self)
         global THREAD_OUTPUT
 
-        self.measurements = measurements
         self.measurements_manager = measurements_manager
         self.nb_thread = nb_thread
         self.fixed_message_nb = 9
         self.network_to_crawl = network_to_crawl
         self.display_prog = display_prog
-        self.start_time = measurements.get_start_time()
+        self.start_time = None
         self.__stop_event = Event()
         self.__pause_event = Event()
 
@@ -42,6 +41,7 @@ class Displayer(Thread):
             i = i + 1
 
     def run(self):
+        self.start_time = self.measurements_manager.measurements.get_start_time()
         os.system('clear')
 
         if not self.display_prog:
@@ -78,12 +78,12 @@ class Displayer(Thread):
                     print_there(0, 0, "Increase the Size of your Terminal")
                     break
                 elif i % (self.terminal_rows - 1 - self.fixed_message_nb - nb_message_to_display) == 0 or i == thread_output_length:
-                    nb_ipv4_to_read = self.measurements.get_nb_to_read("ipv4")
-                    nb_ipv6_to_read = self.measurements.get_nb_to_read("ipv6")
-                    nb_being_read = self.measurements.get_nb_being_read()
-                    nb_readed = self.measurements.get_nb_readed()
-                    nb_active = self.measurements.get_nb_active_peers()
-                    process_time_stat = self.measurements.get_process_ip_stat_per_query_nb()
+                    nb_ipv4_to_read = self.measurements_manager.measurements.get_nb_to_read("ipv4")
+                    nb_ipv6_to_read = self.measurements_manager.measurements.get_nb_to_read("ipv6")
+                    nb_being_read = self.measurements_manager.measurements.get_nb_being_read()
+                    nb_readed = self.measurements_manager.measurements.get_nb_readed()
+                    nb_active = self.measurements_manager.measurements.get_nb_active_peers()
+                    process_time_stat = self.measurements_manager.measurements.get_process_ip_stat_per_query_nb()
 
                     if -1 in process_time_stat:
                         no_connection_stat = process_time_stat[-1]

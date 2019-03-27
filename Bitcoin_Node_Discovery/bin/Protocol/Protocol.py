@@ -2,8 +2,8 @@ import hashlib
 import ipaddress
 import time
 import math
-from Protocol.ProtocolException import *
-from Protocol.Bitcoin_Messages import *
+from .ProtocolException import *
+from .Bitcoin_Messages import *
 
 COMMAND = {"version", "verack", "getaddr", "addr", "ping", "pong"}
 

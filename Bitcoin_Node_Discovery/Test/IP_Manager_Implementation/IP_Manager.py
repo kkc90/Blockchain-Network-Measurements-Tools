@@ -1,7 +1,7 @@
 from threading import Thread
 from threading import Event
-from Protocol.ProtocolException import *
-from CrawlingException import *
+from .Protocol.ProtocolException import *
+from .CrawlingException import *
 
 import traceback
 import queue

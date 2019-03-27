@@ -1,10 +1,36 @@
-from threading import Thread, Event
-from MeasurementsException import *
-
+import os
+import sys
 import time
+import traceback
 import queue
-import traceback, sys
+import shutil
+from threading import Thread, Event
+from .MeasurementsException import *
+
 STOP_EVENT = Event()
+
+
+def create_measurements_folder(directory="Measurements/"):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        else:
+            shutil.rmtree(directory)
+            os.makedirs(directory)
+    except OSError:
+        raise OSError("Error: Failed to create directory: ", directory)
+
+
+def create_log_folder():
+    directory = "Log/"
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        else:
+            shutil.rmtree(directory)
+            os.makedirs(directory)
+    except OSError:
+        print("Error: Failed to create directory: ", directory)
 
 
 class Measurements_Manager(Thread):
@@ -15,6 +41,9 @@ class Measurements_Manager(Thread):
         self.measurements = measurements
         self.measurements_queue = queue.Queue()
         self.measurements_storage_task_fail = False
+
+        create_measurements_folder()
+        create_log_folder()
 
     def run(self):
         try:
@@ -38,6 +67,8 @@ class Measurements_Manager(Thread):
             else:
                 self.process_queue()
 
+    def kill(self):
+        STOP_EVENT.set()
 
     def join(self):
         STOP_EVENT.set()

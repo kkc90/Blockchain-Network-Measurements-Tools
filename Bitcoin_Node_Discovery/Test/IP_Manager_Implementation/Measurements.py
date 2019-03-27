@@ -5,59 +5,34 @@ import datetime
 import pytricia
 from threading import Semaphore, Lock
 
-from CrawlingException import *
-from Protocol.Protocol import *
+from .CrawlingException import *
+from .Protocol.Protocol import *
 
 '''
-    Tables used for recording the peer that has already been processed and the peer that will be processed.
-        They are classified into IPv4 and IPv6 tables for convenience.
+        Lock and Semaphore used for recording the peer that will be processed.
 '''
-
-IP_TABLE = pytricia.PyTricia(128)
-
-IP_TABLE_TO_READ = pytricia.PyTricia(128)  # ip:port
-
-IP_TABLE_LOCKER = Lock()
 
 # Those are the Semaphore that will be used to monitor the number of peer in the tables
 TABLE_TO_READ_SEMAPHORE = Semaphore()
 
 '''
-                                Tables used for recording the different measurements.
-    NB: They do not need to be protected with mutexes as there is only one producer(Measurements Manager) and one consumer (Displayer).
+                    Lock used for recording the different measurements.
 '''
 
-# This table records statistics on the Version of the Bitcoin Nodes already queried
-VERSION_STAT = dict()
 VERSION_STAT_LOCKER = Lock()
 
-# This table records statistics on the Services provided by the Bitcoin Nodes already queried
-SERVICE_STAT = dict()
 SERVICE_STAT_LOCKER = Lock()
 
-# This table records statistics on why connection has failed with Bitcoin Nodes
-CONNECTION_FAILED_STAT = dict()
 CONNECTION_FAILED_STAT_LOCKER = Lock()
 
-# This table records the IPs of the Bitcoin Nodes considered as active
-ACTIVE_PEERS = dict()
 ACTIVE_PEERS_LOCKER = Lock()
 
-# This table records the Duration of the TCP handshake with the Bitcoin Nodes already queried
-PEERS_TCP_HANDSHAKE_DURATION = dict()
 PEERS_TCP_HANDSHAKE_DURATION_LOCKER = Lock()
 
-# This table records the Duration of the Bitcoin Protocol's handshake with the Bitcoin Nodes already queried
-PEERS_BITCOIN_HANDSHAKE_DURATION = dict()
 PEERS_BITCOIN_HANDSHAKE_DURATION_LOCKER = Lock()
 
-# This table records the number of peer queried per Bitcoin Nodes already queried
-PEERS_QUERIED_NB = dict()
 PEERS_QUERIED_NB_LOCKER = Lock()
 
-# This table records statistics on the average time taken to query [nb_query] peer for the thread [thread_nb].
-PROCESS_IP_STAT = dict()
-PROCESS_IP_STAT_AUX = dict()
 PROCESS_IP_STAT_LOCKER = Lock()
 
 '''
@@ -75,13 +50,51 @@ NODE_NETWORK_LIMITED = (1 << 10)  # Node is capable of serving the last 288 bloc
 
 class Measurements:
 
-    def __init__(self, network_to_crawl, nb_thread, start_time):
+    def __init__(self, network_to_crawl, nb_thread):
         global TABLE_TO_READ_SEMAPHORE
 
+        TABLE_TO_READ_SEMAPHORE = Semaphore()
         TABLE_TO_READ_SEMAPHORE.acquire()
 
         self.network_to_crawl = network_to_crawl
 
+        '''
+                            Tables used for recording the peer that will be processed.
+        '''
+
+        self.ip_table = pytricia.PyTricia(128)
+        self.ip_table_to_read = pytricia.PyTricia(128)
+
+        '''
+                             Tables used for recording the different measurements.
+        '''
+
+        # This table records statistics on the Version of the Bitcoin Nodes already queried
+        self.version_stat = dict()
+
+        # This table records statistics on the Services provided by the Bitcoin Nodes already queried
+        self.service_stat = dict()
+
+        # This table records statistics on why connection has failed with Bitcoin Nodes
+        self.connection_failed_stat = dict()
+
+        # This table records the IPs of the Bitcoin Nodes considered as active
+        self.active_peers = dict()
+
+        # This table records the Duration of the TCP handshake with the Bitcoin Nodes already queried
+        self.peers_tcp_handshake_duration = dict()
+
+        # This table records the Duration of the Bitcoin Protocol's handshake with the Bitcoin Nodes already queried
+        self.peers_bitcoin_handshake_duration = dict()
+
+        # This table records the number of peer queried per Bitcoin Nodes already queried
+        self.peers_queried_nb = dict()
+
+        # This table records statistics on the average time taken to query [nb_query] peer for the thread [thread_nb].
+        self.process_ip_stat = dict()
+        self.process_ip_stat_aux = dict()
+
+        self.nb_collected = 0
         self.nb_ipv4 = 0
         self.nb_ipv6 = 0
         self.nb_being_read = 0
@@ -89,44 +102,37 @@ class Measurements:
         self.nb_active = 0
 
         self.nb_thread = nb_thread
+        self.start_time = None
+        self.stop_time = None
+
+        for i in range(0, nb_thread):
+            self.process_ip_stat[i] = dict()
+
+        for i in range(0, nb_thread):
+            self.process_ip_stat_aux[i] = dict()
+
+    def set_stop_time(self, stop_time):
+        self.stop_time = stop_time
+
+    def set_start_time(self, start_time):
         self.start_time = start_time
-
-        for i in range(0, nb_thread):
-            PROCESS_IP_STAT[i] = dict()
-
-        for i in range(0, nb_thread):
-            PROCESS_IP_STAT_AUX[i] = dict()
 
     '''
         Store Measurements into Files
     '''
 
-    def store_measurements(self):
-        global IP_TABLE_TO_READ
+    def store_measurements(self, end=False, folder="Measurements/"):
+        if end is True:
+            stop = self.stop_time
+        else:
+            stop = datetime.datetime.now()
 
-        global VERSION_STAT
+        if stop is None:
+            stop = datetime.datetime.now()
 
-        global SERVICE_STAT
+        stdout = open((folder + "Process_IP_Stat"), "w+")
 
-        global CONNECTION_FAILED_STAT
-
-        global ACTIVE_PEERS
-
-        global PEERS_TCP_HANDSHAKE_DURATION
-
-        global PEERS_BITCOIN_HANDSHAKE_DURATION
-
-        global IP_TABLE
-
-        global PROCESS_IP_STAT
-
-        global PEERS_QUERIED_NB
-
-        stop = datetime.datetime.now()
-
-        stdout = open("Measurements/Process_IP_Stat", "w+")
-
-        process_ip_stat = PROCESS_IP_STAT.copy()
+        process_ip_stat = self.process_ip_stat.copy()
 
         for i in range(0, self.nb_thread):
             stdout.write(("Process  " + str(i) + " : \n"))
@@ -151,11 +157,11 @@ class Measurements:
 
         stdout.close()
 
-        stdout = open("Measurements/IPV4_Table", "w+")
-        stdout1 = open("Measurements/IPV6_Table", "w+")
-        stdout2 = open("Measurements/IP_Table", "w+")
+        stdout = open((folder + "IPV4_Table"), "w+")
+        stdout1 = open((folder + "IPV6_Table"), "w+")
+        stdout2 = open((folder + "IP_Table"), "w+")
 
-        table = list(IP_TABLE)
+        table = list(self.ip_table)
 
         for i in table:
             ip = ipaddress.ip_address(i.split("/")[0])
@@ -172,78 +178,78 @@ class Measurements:
         stdout1.close()
         stdout2.close()
 
-        stdout = open("Measurements/Version_Stat", "w+")
+        stdout = open((folder + "Version_Stat"), "w+")
 
-        a = dict(VERSION_STAT).copy()
+        a = dict(self.version_stat).copy()
+
+        for i in a.items():
+            stdout.write(("Version " + str(i[0]) + " : " + str(i[1]) + " peers" + '\n'))
+
+        stdout.close()
+
+        stdout = open((folder + "Service_Stat"), "w+")
+
+        a = dict(self.service_stat).copy()
+
+        for i in a.items():
+            stdout.write(("Service " + str(self.get_service(i[0])) + " : " + str(i[1]) + " peers" + '\n'))
+
+        stdout.close()
+
+        stdout = open((folder + "Connection_failed_stat"), "w+")
+
+        a = dict(self.connection_failed_stat).copy()
 
         for i in a.items():
             stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
 
         stdout.close()
 
-        stdout = open("Measurements/Service_Stat", "w+")
+        stdout = open((folder + "Active_Peers"), "a")
 
-        a = dict(SERVICE_STAT).copy()
-
-        for i in a.items():
-            stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
-
-        stdout.close()
-
-        stdout = open("Measurements/Connection_failed_stat", "w+")
-
-        a = dict(CONNECTION_FAILED_STAT).copy()
+        a = dict(self.active_peers).copy()
 
         for i in a.items():
             stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
 
         stdout.close()
 
-        stdout = open("Measurements/Active_Peers", "a")
+        self.active_peers = dict()
 
-        a = dict(ACTIVE_PEERS).copy()
+        stdout = open((folder + "Peers_Query_nb"), "a")
 
-        for i in a.items():
-            stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
-
-        stdout.close()
-
-        ACTIVE_PEERS = dict()
-
-        stdout = open("Measurements/Peers_Query_nb", "a")
-
-        a = dict(PEERS_QUERIED_NB).copy()
+        a = dict(self.peers_queried_nb).copy()
 
         for i in a.items():
             stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
 
         stdout.close()
 
-        PEERS_QUERIED_NB = dict()
+        self.peers_queried_nb = dict()
 
-        stdout = open("Measurements/Peers_TCP_Handshake_Duration", "a")
+        stdout = open((folder + "Peers_TCP_Handshake_Duration"), "a")
 
-        a = dict(PEERS_TCP_HANDSHAKE_DURATION).copy()
-
-        for i in a.items():
-            stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
-
-        stdout.close()
-
-        PEERS_TCP_HANDSHAKE_DURATION = dict()
-
-        stdout = open("Measurements/Peers_Bitcoin_Handshake_Duration", "a")
-
-        a = dict(PEERS_BITCOIN_HANDSHAKE_DURATION).copy()
+        a = dict(self.peers_tcp_handshake_duration).copy()
 
         for i in a.items():
             stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
 
         stdout.close()
 
-        PEERS_BITCOIN_HANDSHAKE_DURATION = dict()
+        self.peers_tcp_handshake_duration = dict()
 
-        stdout = open("Measurements/Measure_Information", "w+")
+        stdout = open((folder + "Peers_Bitcoin_Handshake_Duration"), "a")
+
+        a = dict(self.peers_bitcoin_handshake_duration).copy()
+
+        for i in a.items():
+            stdout.write((str(i[0]) + " : " + str(i[1]) + '\n'))
+
+        stdout.close()
+
+        self.peers_bitcoin_handshake_duration = dict()
+
+        stdout = open((folder + "Measure_Information"), "w+")
 
         stdout.write(("Crawling started at : " + self.start_time.strftime(
             "%Y-%m-%d %H:%M:%S") + " - Elapsed Time : " + str(
@@ -260,130 +266,167 @@ class Measurements:
 
         stdout.close()
 
+    def display_measurements(self, network_to_crawl, details=True):
+        print("")
+        print(("Crawling began at : " + self.start_time.strftime("%Y-%m-%d %H:%M:%S")))
+        print(("Crawling done in " + str(
+            (self.stop_time - self.start_time).total_seconds()) + " seconds."))
+        print("")
+
+        print("Measurements : ")
+        nb_readed = self.get_nb_readed()
+        nb_active = self.get_nb_active_peers()
+        nb_collected = self.get_nb_collected()
+
+        if network_to_crawl == "ipv4":
+            print(str(nb_readed) + " IPv4 Peers has been processed.")
+            print(str(nb_collected) + " Peers has been collected (IPv4 + IPv6).")
+        elif network_to_crawl == "ipv6":
+            print(str(nb_readed) + " IPv6 Peers has been processed.")
+            print(str(nb_collected) + " Peers has been collected (IPv4 + IPv6).")
+        else:
+            print(str(nb_readed) + " Peers has been processed (IPv4 + IPv6).")
+            print(str(nb_collected) + " Peers has been collected (IPv4 + IPv6).")
+
+        print((str(nb_active) + " Active peers."))
+
+        if details is True:
+            print("\n")
+            self.display_failed_connection_stat()
+            print("\n")
+            self.display_version_table()
+            print("\n")
+            self.display_service_table()
+
+    def display_failed_connection_stat(self):
+        failed_connection_stat = self.get_failed_connection_stat()
+        print("Connection Failure Statistics :")
+        for i in failed_connection_stat.items():
+            print(("Number of connection failed because of \"" + str(i[0]) + "\" = " + str(i[1]) + " peers"))
+
+    def display_version_table(self):
+        print("Version Statistics :")
+        for i in self.get_version_stat().items():
+            print(("Version " + str(i[0]) + " : " + str(i[1]) + " peers"))
+
+    def display_service_table(self):
+        print("Service Statistics :")
+        for i in self.get_service_stat().items():
+            print(("Service " + str(self.get_service(i[0])) + " : " + str(i[1]) + " peers"))
+
     '''
         Add Measure to the tables recording the Measurements
     '''
 
     def add_process_ip_stat(self, stat, nb_query, thread_nb):
-        global PROCESS_IP_STAT
-        global PROCESS_IP_STAT_AUX
         global PROCESS_IP_STAT_LOCKER
 
         PROCESS_IP_STAT_LOCKER.acquire()
 
-        if nb_query in PROCESS_IP_STAT[thread_nb]:
-            PROCESS_IP_STAT[thread_nb][nb_query] = float(
-                ((PROCESS_IP_STAT[thread_nb][nb_query] * PROCESS_IP_STAT_AUX[thread_nb][
-                    nb_query]) + stat) / (PROCESS_IP_STAT_AUX[thread_nb][nb_query] + 1))
-            PROCESS_IP_STAT_AUX[thread_nb][nb_query] = PROCESS_IP_STAT_AUX[thread_nb][nb_query] + 1
+        if nb_query in self.process_ip_stat[thread_nb]:
+            self.process_ip_stat[thread_nb][nb_query] = float(
+                ((self.process_ip_stat[thread_nb][nb_query] * self.process_ip_stat_aux[thread_nb][
+                    nb_query]) + stat) / (self.process_ip_stat_aux[thread_nb][nb_query] + 1))
+            self.process_ip_stat_aux[thread_nb][nb_query] = self.process_ip_stat_aux[thread_nb][nb_query] + 1
         else:
-            PROCESS_IP_STAT[thread_nb][nb_query] = stat
-            PROCESS_IP_STAT_AUX[thread_nb][nb_query] = 1
+            self.process_ip_stat[thread_nb][nb_query] = stat
+            self.process_ip_stat_aux[thread_nb][nb_query] = 1
 
         PROCESS_IP_STAT_LOCKER.release()
 
     def add_peer_bitcoin_handshake_duration(self, ip, handshake_duration):
-        global PEERS_BITCOIN_HANDSHAKE_DURATION
         global PEERS_BITCOIN_HANDSHAKE_DURATION_LOCKER
 
         PEERS_BITCOIN_HANDSHAKE_DURATION_LOCKER.acquire()
 
-        PEERS_BITCOIN_HANDSHAKE_DURATION[ip] = handshake_duration
+        self.peers_bitcoin_handshake_duration[ip] = handshake_duration
 
         PEERS_BITCOIN_HANDSHAKE_DURATION_LOCKER.release()
 
     def add_peer_tcp_handshake_duration(self, ip, handshake_duration):
-        global PEERS_TCP_HANDSHAKE_DURATION
         global PEERS_TCP_HANDSHAKE_DURATION_LOCKER
 
         PEERS_TCP_HANDSHAKE_DURATION_LOCKER.acquire()
 
-        PEERS_TCP_HANDSHAKE_DURATION[ip] = handshake_duration
+        self.peers_tcp_handshake_duration[ip] = handshake_duration
 
         PEERS_TCP_HANDSHAKE_DURATION_LOCKER.release()
 
     def add_peer_queried(self, ip, nb):
-        global PEERS_QUERIED_NB
         global PEERS_QUERIED_NB_LOCKER
 
         PEERS_QUERIED_NB_LOCKER.acquire()
 
-        if ip in PEERS_QUERIED_NB:
-            PEERS_QUERIED_NB[ip] = PEERS_QUERIED_NB[ip] + nb
+        if ip in self.peers_queried_nb:
+            self.peers_queried_nb[ip] = self.peers_queried_nb[ip] + nb
         else:
-            PEERS_QUERIED_NB[ip] = nb
+            self.peers_queried_nb[ip] = nb
 
         PEERS_QUERIED_NB_LOCKER.release()
 
     def add_active_peer(self, ip):
-        global ACTIVE_PEERS
         global ACTIVE_PEERS_LOCKER
 
         ACTIVE_PEERS_LOCKER.acquire()
 
-        ACTIVE_PEERS[ip] = str(datetime.datetime.now().time())
+        self.active_peers[ip] = str(datetime.datetime.now().time())
         self.nb_active = self.nb_active + 1
 
         ACTIVE_PEERS_LOCKER.release()
 
     def add_connection_failed_stat(self, reason):
-        global CONNECTION_FAILED_STAT
         global CONNECTION_FAILED_STAT_LOCKER
 
         CONNECTION_FAILED_STAT_LOCKER.acquire()
 
-        if reason in CONNECTION_FAILED_STAT:
-            CONNECTION_FAILED_STAT[reason] = CONNECTION_FAILED_STAT[reason] + 1
+        if reason in self.connection_failed_stat:
+            self.connection_failed_stat[reason] = self.connection_failed_stat[reason] + 1
         else:
-            CONNECTION_FAILED_STAT[reason] = 1
+            self.connection_failed_stat[reason] = 1
 
         CONNECTION_FAILED_STAT_LOCKER.release()
 
     def add_IP_Service(self, ip, service):
-        global SERVICE_STAT
         global SERVICE_STAT_LOCKER
 
         SERVICE_STAT_LOCKER.acquire()
 
-        i = str(service)
-
-        if i in SERVICE_STAT:
-            SERVICE_STAT[i] = SERVICE_STAT[i] + 1
+        if service in self.service_stat:
+            self.service_stat[service] = self.service_stat[service] + 1
         else:
-            SERVICE_STAT[i] = 1
+            self.service_stat[service] = 1
 
         SERVICE_STAT_LOCKER.release()
 
     def add_version_stat(self, version):
-        global VERSION_STAT
         global VERSION_STAT_LOCKER
 
         VERSION_STAT_LOCKER.acquire()
 
-        if version in VERSION_STAT:
-            VERSION_STAT[version] = VERSION_STAT[version] + 1
+        if version in self.version_stat:
+            self.version_stat[version] = self.version_stat[version] + 1
         else:
-            VERSION_STAT[version] = 1
+            self.version_stat[version] = 1
 
         VERSION_STAT_LOCKER.release()
 
     '''
-        Add the IPs queried to the DNS Servers
+        Add the IPs to start the crawling
     '''
 
-    def add_dns_list_IP_to_read(self, ips):
-        global IP_TABLE_TO_READ
+    def add_seed_IP_to_read(self, seed_ips):
         global TABLE_TO_READ_SEMAPHORE
 
-        for A_ip in ips:
-            ip = ipaddress.ip_address(str(A_ip))
+        for ip in seed_ips:
+            ip = ipaddress.ip_address(str(ip))
             type = self.get_ip_type(ip)
 
-            if not (ip in IP_TABLE):
-                IP_TABLE.insert(ip, 8333)
+            if not (ip in self.ip_table):
+                self.ip_table.insert(ip, 8333)
+                self.nb_collected = self.nb_collected + 1
 
                 if (type == self.network_to_crawl or self.network_to_crawl == "any"):
-                    IP_TABLE_TO_READ.insert(ip, 8333)
+                    self.ip_table_to_read.insert(ip, 8333)
                     TABLE_TO_READ_SEMAPHORE.release()
 
                 if (type == "ipv4"):
@@ -405,12 +448,7 @@ class Measurements:
         self.nb_readed = self.nb_readed + 1
 
     def treatAddrPacket(self, rcv_msg):
-        global IP_TABLE
-
-        global IP_TABLE_TO_READ
         global TABLE_TO_READ_SEMAPHORE
-
-        self.acquire_lock(IP_TABLE_LOCKER)
 
         tmp = rcv_msg.get_IP_Table()
         counter = 0
@@ -418,13 +456,14 @@ class Measurements:
         for i in tmp.items():
             ip = ipaddress.ip_address(i[0])
 
-            if not (ip in IP_TABLE):
-                IP_TABLE.insert(ip, 8333)
+            if not (ip in self.ip_table):
+                self.ip_table.insert(ip, 8333)
+                self.nb_collected = self.nb_collected + 1
 
                 type = self.get_ip_type(ip)
 
                 if (type == self.network_to_crawl or self.network_to_crawl == "any"):
-                    IP_TABLE_TO_READ.insert(ip, 8333)
+                    self.ip_table_to_read.insert(ip, 8333)
                     TABLE_TO_READ_SEMAPHORE.release()
 
                 if (type == "ipv4"):
@@ -433,18 +472,13 @@ class Measurements:
                     self.nb_ipv6 = self.nb_ipv6 + 1
 
                 counter = counter + 1
-
-        IP_TABLE_LOCKER.release()
-
         return counter
 
     def get_mean_process_ip_stat(self, thread_nb=None):
-        global PROCESS_IP_STAT
-
         mean_process_ip_stat = 0.0
 
         if thread_nb is None:
-            temp = PROCESS_IP_STAT.copy()
+            temp = self.process_ip_stat.copy()
             for process in temp.items():
 
                 a = 0.0
@@ -461,7 +495,7 @@ class Measurements:
 
             mean_process_ip_stat = mean_process_ip_stat / self.nb_thread
         else:
-            temp = PROCESS_IP_STAT[thread_nb].copy()
+            temp = self.process_ip_stat[thread_nb].copy()
             i = 0
 
             for stat in temp.items():
@@ -475,19 +509,15 @@ class Measurements:
         return mean_process_ip_stat
 
     def get_process_ip_stat(self, thread_nb=None):
-        global PROCESS_IP_STAT
-
         if thread_nb is None:
-            temp = PROCESS_IP_STAT.copy()
+            temp = self.process_ip_stat.copy()
         else:
-            temp = PROCESS_IP_STAT[thread_nb].copy()
+            temp = self.process_ip_stat[thread_nb].copy()
 
         return temp
 
     def get_process_ip_stat_per_query_nb(self):
-        global PROCESS_IP_STAT
-
-        temp = PROCESS_IP_STAT.copy()
+        temp = self.process_ip_stat.copy()
 
         stat = dict()
         stat_aux = dict()
@@ -504,8 +534,6 @@ class Measurements:
         return stat
 
     def get_nb_active_peers(self):
-        global ACTIVE_PEERS
-
         return self.nb_active
 
     def get_service(self, service):
@@ -544,22 +572,19 @@ class Measurements:
         return result
 
     def get_failed_connection_stat(self):
-        global CONNECTION_FAILED_STAT
-
-        return dict(CONNECTION_FAILED_STAT).copy()
+        return dict(self.connection_failed_stat).copy()
 
     def get_version_stat(self):
-        global VERSION_STAT
-
-        return VERSION_STAT.copy()
+        return self.version_stat.copy()
 
     def get_service_stat(self):
-        global SERVICE_STAT
-
-        return SERVICE_STAT.copy()
+        return self.service_stat.copy()
 
     def get_nb_readed(self):
         return self.nb_readed
+
+    def get_nb_collected(self):
+        return self.nb_collected
 
     def get_nb_being_read(self):
         return self.nb_being_read
@@ -582,13 +607,13 @@ class Measurements:
             return "ipv6"
 
     def get_IP_to_read(self):
-        global IP_TABLE_TO_READ
         global TABLE_TO_READ_SEMAPHORE
-        global IP_TABLE_LOCKER
 
         i = 0
         while not TABLE_TO_READ_SEMAPHORE.acquire(timeout=5):
             if self.get_nb_being_read() == 0:
+                if self.stop_time is None:
+                    self.stop_time = datetime.datetime.now()
                 raise NoMoreIPToProcessException(
                     "NoMoreIPToProcess Exception : The crawler has no other node to explore.")
 
@@ -597,14 +622,10 @@ class Measurements:
                     " Too much attempt to query the IP database without success (no ip to process in the queue)")
             i = i + 1
 
-        self.acquire_lock(IP_TABLE_LOCKER)
-
-        result = ipaddress.ip_address(next(iter(IP_TABLE_TO_READ)).split("/")[0])
-        IP_TABLE_TO_READ.delete(result)
+        result = ipaddress.ip_address(next(iter(self.ip_table_to_read)).split("/")[0])
+        self.ip_table_to_read.delete(result)
 
         self.nb_being_read = self.nb_being_read + 1
-
-        IP_TABLE_LOCKER.release()
 
         try:
             type = self.get_ip_type(result)

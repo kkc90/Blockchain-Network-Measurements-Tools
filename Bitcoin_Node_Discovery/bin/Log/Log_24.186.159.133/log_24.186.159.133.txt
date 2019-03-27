@@ -1,0 +1,20 @@
+Thread 12 failed unexpectedly while querying 24.186.159.133.
+
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/IP_Lookup.py", line 118, in crawl
+    nb_query = co_to_peer.crawl_ip()
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/P2P_Connection.py", line 106, in crawl_ip
+    self.ask_for_peers()
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/P2P_Connection.py", line 237, in ask_for_peers
+    if self.bitcoin_ask_for_peers():
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/P2P_Connection.py", line 324, in bitcoin_ask_for_peers
+    self.treat_msg(rcv_msg)
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/P2P_Connection.py", line 385, in treat_msg
+    nb_new = self.measurements_manager.treatAddrPacket(rcv_msg)
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/Measurements_Manager.py", line 120, in treatAddrPacket
+    self.measurements.treatAddrPacket(rcv_msg)
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/Measurements.py", line 455, in treatAddrPacket
+    self.acquire_lock(IP_TABLE_LOCKER)
+  File "/home/ibafend/Bureau/Bitcoin Network Measurements Tools/Bitcoin_Node_Discovery/bin/Measurements.py", line 663, in acquire_lock
+    raise LockTimeoutException("LockTimeout Exception: Lock has not been acquire in the given time")
+'LockTimeout Exception: Lock has not been acquire in the given time'
+

@@ -4,10 +4,10 @@ import random
 import time
 import subprocess
 
-from Protocol import Protocol
-from Protocol.Bitcoin_Messages import *
+from .Protocol import Protocol
+from .Protocol.Bitcoin_Messages import *
 
-from CrawlingException import *
+from .CrawlingException import *
 
 
 class P2P_Connection:

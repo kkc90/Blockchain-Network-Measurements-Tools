@@ -3,12 +3,13 @@ import sys
 import time
 import traceback
 import queue
+import datetime
 from threading import Thread, Event, Lock
 
-from CrawlingException import *
-from P2P_Connection import P2P_Connection
-from P2P_Receiver import P2P_Receiver
-from P2P_Sender import P2P_Sender
+from .CrawlingException import *
+from .P2P_Connection import P2P_Connection
+from .P2P_Receiver import P2P_Receiver
+from .P2P_Sender import P2P_Sender
 
 STOP_EVENT = Event()
 PRINT_LOCK = Lock()
@@ -53,6 +54,7 @@ class IP_Lookup(Thread):
             if self.displayer is not None:
                 self.display_msg("Crawling End but still IP to process.")
 
+        self.measurements_manager.measurements.set_stop_time(datetime.datetime.now())
 
         self.sender.join()
         self.receiver.join()
@@ -101,6 +103,7 @@ class IP_Lookup(Thread):
                         break
                 except NoMoreIPToProcessException:
                     self.crawling_done = True
+                    self.displayer.show_progression()
                     break
                 co_to_peer = P2P_Connection(self.target_service, str(node_ip), self.dst_port, self.src_port, self.src_ip,
                                             self.measurements_manager, self.thread_nb, self.displayer,
@@ -126,7 +129,7 @@ class IP_Lookup(Thread):
     def kill(self):
         STOP_EVENT.set()
 
-    def isTerminated(self):
+    def hasFinish(self):
         return not ((not self.crawling_done) and (not STOP_EVENT.isSet()))
 
     def create_log_node_folder(self, node_ip):

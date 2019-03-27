@@ -1,10 +1,9 @@
-import geoip2.database
-import os
-import operator
 import csv
-import requests
-import datetime
 import ipaddress
+import operator
+import os
+
+import geoip2.database
 
 # Service Flags
 NODE_NONE = 0  # Nothing
@@ -96,7 +95,8 @@ if os.path.exists("Measurements/IP_Table"):
 
 else:
     print(
-        "Impossible to gather Statistics about the country : The Measurements Folder doesn't contains a Table of Addresses.")
+        "Impossible to gather Statistics about the country : "
+        "The Measurements Folder doesn't contains a Table of Addresses.")
 
 doublon = False
 
@@ -137,7 +137,8 @@ if os.path.exists("Measurements/Active_Peers"):
         exit(-1)
 else:
     print(
-        "Impossible to gather Statistics about the country of Active Peers : The Measurements Folder doesn't contains a Table of Active Peers.")
+        "Impossible to gather Statistics about the country of Active Peers : "
+        "The Measurements Folder doesn't contains a Table of Active Peers.")
 
 doublon = False
 
@@ -163,7 +164,8 @@ if os.path.exists("Measurements/IPV4_Table"):
         exit(-1)
 else:
     print(
-        "Impossible to gather Statistics about the IPV4_Table : The Measurements Folder doesn't contains a Table of IPV4 Peers.")
+        "Impossible to gather Statistics about the IPV4_Table : "
+        "The Measurements Folder doesn't contains a Table of IPV4 Peers.")
 
 doublon = False
 
@@ -189,7 +191,8 @@ if os.path.exists("Measurements/IPV6_Table"):
         exit(-1)
 else:
     print(
-        "Impossible to gather Statistics about the IPV6_Table : The Measurements Folder doesn't contains a Table of IPV6 Peers.")
+        "Impossible to gather Statistics about the IPV6_Table : "
+        "The Measurements Folder doesn't contains a Table of IPV6 Peers.")
 
 doublon = False
 
@@ -250,7 +253,9 @@ if os.path.exists("Measurements/Peers_Bitcoin_Handshake_Duration"):
         exit(-1)
 
 else:
-    print("Impossible to gather Statistics about the Bitcoin Handshake Duration : The Measurements Folder doesn't contains a Table of Bitcoin Handshake Duration.")
+    print(
+        "Impossible to gather Statistics about the Bitcoin Handshake Duration : "
+        "The Measurements Folder doesn't contains a Table of Bitcoin Handshake Duration.")
 
 doublon = False
 
@@ -270,7 +275,8 @@ if os.path.exists("Measurements/Connection_failed_stat"):
     file.close()
 else:
     print(
-        "Impossible to gather Statistics about the Connection_failed_Stat : The Measurements Folder doesn't contains a Table of Connection_failed_Stat.")
+        "Impossible to gather Statistics about the Connection_failed_Stat : "
+        "The Measurements Folder doesn't contains a Table of Connection_failed_Stat.")
 
 doublon = False
 
@@ -298,7 +304,8 @@ if os.path.exists("Measurements/Peers_Query_nb"):
     file.close()
 else:
     print(
-        "Impossible to gather Statistics about the Peers_Query_nb : The Measurements Folder doesn't contains a Table of Peers_Query_nb.")
+        "Impossible to gather Statistics about the Peers_Query_nb : "
+        "The Measurements Folder doesn't contains a Table of Peers_Query_nb.")
 
 if os.path.exists("Measurements/Service_Stat"):
     file = open("Measurements/Service_Stat", "r")
@@ -312,7 +319,8 @@ if os.path.exists("Measurements/Service_Stat"):
     file.close()
 else:
     print(
-        "Impossible to gather Statistics about the Service : The Measurements Folder doesn't contains a Table of Service_Stat.")
+        "Impossible to gather Statistics about the Service : "
+        "The Measurements Folder doesn't contains a Table of Service_Stat.")
 
 if os.path.exists("Measurements/Version_Stat"):
     file = open("Measurements/Version_Stat", "r")
@@ -326,7 +334,8 @@ if os.path.exists("Measurements/Version_Stat"):
     file.close()
 else:
     print(
-        "Impossible to gather Statistics about the Version : The Measurements Folder doesn't contains a Table of Version_Stat.")
+        "Impossible to gather Statistics about the Version : "
+        "The Measurements Folder doesn't contains a Table of Version_Stat.")
 
 bitcoin_stat = dict()
 
@@ -337,124 +346,3 @@ bitcoin_stat["NB_IPV4_ACTIVE_PEERS"] = NB_IPV4_ACTIVE_PEERS
 bitcoin_stat["AVERAGE_QUERY_NB"] = AVERAGE_QUERY_NB
 
 write_dict_as_csv("Measurements/Bitcoin_Stat.csv", bitcoin_stat)
-
-
-def add_version_stat(version_stat, version):
-    if version in version_stat:
-        version_stat[version] = version_stat[version] + 1
-    else:
-        version_stat[version] = 1
-
-
-def add_country_stat(country_stat, country):
-    if country in country_stat:
-        country_stat[country] = country_stat[country] + 1
-    else:
-        country_stat[country] = 1
-
-
-def get_service(service):
-    result = []
-    tmp = service
-
-    if tmp == NODE_NONE:
-        result.append("NODE_NODE")
-
-    if tmp >= NODE_NETWORK_LIMITED:
-        result.append("NODE_NETWORK_LIMITED")
-        tmp = tmp - NODE_NETWORK_LIMITED
-
-    if tmp >= NODE_XTHIN:
-        result.append("NODE_XTHIN")
-        tmp = tmp - NODE_XTHIN
-
-    if tmp >= NODE_WITNESS:
-        result.append("NODE_WITNESS")
-        tmp = tmp - NODE_WITNESS
-
-    if tmp >= NODE_BLOOM:
-        result.append("NODE_BLOOM")
-        tmp = tmp - NODE_BLOOM
-
-    if tmp >= NODE_GETUTXO:
-        result.append("NODE_GETUTXO")
-        tmp = tmp - NODE_GETUTXO
-
-    if tmp >= NODE_NETWORK:
-        result.append("NODE_NETWORK")
-        tmp = tmp - NODE_NETWORK
-
-    if len(result) == 0 or tmp != 0:
-        result.append("OTHER")
-
-    return result
-
-
-def add_service_stat(service_stat, service):
-    stat = get_service(service)
-
-    if str(stat) in service_stat:
-        service_stat[str(stat)] = service_stat[str(stat)] + 1
-    else:
-        service_stat[str(stat)] = 1
-
-
-def add_bitnodes_active_peers(bitnodes_active_peers, bitnodes_ipv4_active_peers, bitnodes_ipv6_active_peers, peer):
-    if peer.find(".onion") == -1:
-        line = peer.replace("[", "").replace("]", "").split(":")
-        ip = ""
-
-        if len(line) > 2:
-            for i in line[0:len(line) - 1]:
-                ip = ip + ":" + i
-            ip = ip[1:len(ip)]
-        else:
-            ip = line[0]
-
-        bitnodes_active_peers.append(ip)
-        type = ipaddress.ip_address(ip).version
-        if type == 4:
-            bitnodes_ipv4_active_peers.append(ip)
-        elif type == 6:
-            bitnodes_ipv6_active_peers.append(ip)
-
-
-BITNODES_VERSION_STAT = dict()
-BITNODES_COUNTRY_STAT = dict()
-BITNODES_SERVICE_STAT = dict()
-BITNODES_ACTIVE_PEERS = list()
-BITNODES_IPV4_ACTIVE_PEERS = list()
-BITNODES_IPV6_ACTIVE_PEERS = list()
-
-if not os.path.exists("Measurements/Bitnodes/"):
-    os.makedirs("Measurements/Bitnodes/")
-
-URL = "https://bitnodes.earn.com/api/v1/snapshots/latest/"
-
-req = requests.get(url=URL)
-data = req.json()
-nodes = data["nodes"]
-
-snapshot_time = datetime.datetime.fromtimestamp(data["timestamp"])
-
-if not os.path.exists("Measurements/Bitnodes/Snapshot_" + str(snapshot_time)):
-    os.makedirs("Measurements/Bitnodes/Snapshot_" + str(snapshot_time))
-
-for node in nodes:
-    add_version_stat(BITNODES_VERSION_STAT, nodes[node][0])
-    add_country_stat(BITNODES_COUNTRY_STAT, nodes[node][7])
-    add_service_stat(BITNODES_SERVICE_STAT, nodes[node][3])
-    add_bitnodes_active_peers(BITNODES_ACTIVE_PEERS, BITNODES_IPV4_ACTIVE_PEERS, BITNODES_IPV6_ACTIVE_PEERS, node)
-
-write_dict_as_csv(("Measurements/Bitnodes/Snapshot_" + str(snapshot_time) + "/Bitnodes_Version_Stat.csv"),
-                  BITNODES_VERSION_STAT)
-write_dict_as_csv(("Measurements/Bitnodes/Snapshot_" + str(snapshot_time) + "/Bitnodes_Country_Stat.csv"),
-                  BITNODES_COUNTRY_STAT)
-write_dict_as_csv(("Measurements/Bitnodes/Snapshot_" + str(snapshot_time) + "/Bitnodes_Service_Stat.csv"),
-                  BITNODES_SERVICE_STAT)
-write_list_as_csv(("Measurements/Bitnodes/Snapshot_" + str(snapshot_time) + "/Bitnodes_Active_Peers.csv"),
-                  BITNODES_ACTIVE_PEERS)
-write_list_as_csv(("Measurements/Bitnodes/Snapshot_" + str(snapshot_time) + "/Bitnodes_IPV4_Active_Peers.csv"),
-                  BITNODES_IPV4_ACTIVE_PEERS)
-write_list_as_csv(("Measurements/Bitnodes/Snapshot_" + str(snapshot_time) + "/Bitnodes_IPV6_Active_Peers.csv"),
-                  BITNODES_IPV6_ACTIVE_PEERS)
