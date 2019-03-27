@@ -1,171 +1,342 @@
-import os
-import sys
-import time
-import traceback
-import datetime
-from threading import Thread, Event, Lock
-
-from CrawlingException import *
-from P2P_Connection import P2P_Connection
-from P2P_Receiver import P2P_Receiver
-from P2P_Sender import P2P_Sender
-
-STOP_EVENT = Event()
-PRINT_LOCK = Lock()
+from .NetworkException import *
+from .Network_Constant import *
+from .P2P_Connection import *
+from .Protocol import *
+from .Protocol.Bitcoin_Messages import *
 
 
-class IP_Lookup(Thread):
-    ORIGIN_NETWORK = 'mainnet'
-
-    def __init__(self, measurements_manager, network_to_crawl, src_ip, service, thread_nb, displayer):
+class Network_Manager(Thread):
+    def __init__(self, src_ip, src_port, src_service, network, bootstrap, blockchain_manager):
         Thread.__init__(self)
-        Thread.setName(self, name=("IP Lookup Thread " + str(thread_nb)))
 
-        self.network_to_crawl = network_to_crawl
-        self.src_port = 8333
-        self.dst_port = 8333
-        self.src_ip = src_ip
-        self.target_service = service
-        self.thread_nb = thread_nb
-        self.crawling_done = False
+        self._network = network
 
-        self.measurements_manager = measurements_manager
-        self.displayer = displayer
+        self._src_ip = src_ip
+        self._src_port = src_port
 
-        self.sender = P2P_Sender(None, self.ORIGIN_NETWORK)
+        self._src_service = src_service
 
-        self.receiver = P2P_Receiver(None, self.ORIGIN_NETWORK)
+        self.__stop_event = Event()
+
+        self._connections = dict()
+
+        self._peers_pool = set(bootstrap)
+
+        self._unactive_peers = dict()
+
+        self._listener_socket = None
+
+        self._listener_thread = None
+
+        self._blockchain_manager = blockchain_manager
 
     def run(self):
-        global STOP_EVENT
+        try:
+            self.start_listener_thread()
 
-        self.sender.start()
-        self.receiver.start()
+            # Connection to the boostrap nodes.
+            for node_ip, node_port, node_service, node_timestamp in self._peers_pool.copy():
+                self.connect(node_ip, node_port, node_service, node_timestamp)
 
-        self.crawl()
+            while not self.__stop_event.isSet():
+                nb_connection_missing = Network_Constant.MIN_NUMBER_OF_CONNECTION - len(self._connections)
 
-        if self.crawling_done:
-            if self.displayer is not None:
-                self.display_msg("No More Ip To Process : Crawling Done.")
-        else:
-            if self.displayer is not None:
-                self.display_msg("Crawling End but still IP to process.")
+                # Check if enough connection are alive
+                if nb_connection_missing > 0:
+                    self.put_back_unactive(Network_Constant.TIMEOUT_RETRY_UNACTIVE_PEER)
 
-        self.measurements_manager.measurements.set_stop_time(datetime.datetime.now())
+                    # Check if enough peer to connect to in the pool
+                    if len(self._peers_pool) < nb_connection_missing:
+                        self.get_peers()
 
-        self.sender.join()
-        self.receiver.join()
+                    self.add_more_active_connection(nb_connection_missing)
 
-    def display_msg(self, msg):
-        if self.displayer is not None:
-            self.displayer.display_thread_progression(msg, self.thread_nb)
+                self.remove_dead_connection()
 
-    def get_IP_to_read(self):
+        except Exception as err:
+            self.display_info(("Unexpected Failure - " + str(err)))
+            traceback.print_exc()
+            self.error_recording()
 
-        self.display_msg("Picking a Peer to query ...")
+    def start_listener_thread(self):
+        addr_type = Protocol.get_ip_type(self._src_ip)
 
-        result = None
-        while not STOP_EVENT.isSet():
-            try:
-                result = self.measurements_manager.get_IP_to_read()
-                break
-            except LockTimeoutException:
-                continue
-            except SemaphoreTimeoutException:
-                continue
-            except UnknownIPAddressTypeException:
-                continue
+        if addr_type == "ipv4":
+            self._listener_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        return result
+        elif addr_type == "ipv6":
+            self._listener_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
-    def add_IP_readed(self, node_ip):
+        self._listener_socket.settimeout(Network_Constant.SOCKET_TIMEOUT)
 
-        while not STOP_EVENT.isSet():
-            try:
-                self.measurements_manager.add_IP_readed(node_ip)
-                break
-            except LockTimeoutException:
-                continue
-            except SemaphoreTimeoutException:
-                continue
-            except UnknownIPAddressTypeException:
-                continue
+        self._listener_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._listener_socket.bind((self._src_ip, self._src_port))
 
-        self.display_msg(("Peer " + str(node_ip) + " has been processed."))
+        self._listener_thread = Thread(target=self.listen, args=())
 
-    def crawl(self):
-        global STOP_EVENT
-        global PRINT_LOCK
+        self._listener_thread.start()
 
-        node_ip = None
-
-        while (not self.crawling_done) and (not STOP_EVENT.isSet()):
-            co_to_peer = None
-            try:
+    def listen(self):
+        try:
+            while not self.__stop_event.isSet():
                 try:
-                    node_ip = self.get_IP_to_read()
+                    self._listener_socket.listen(0)
 
-                    if node_ip is None:
-                        break
-                except NoMoreIPToProcessException:
-                    self.crawling_done = True
-                    self.displayer.show_progression()
-                    break
-                co_to_peer = P2P_Connection(self.target_service, str(node_ip), self.dst_port, self.src_port, self.src_ip,
-                                            self.measurements_manager, self.thread_nb, self.displayer,
-                                            self.sender, self.receiver)
-                start = time.time()
-                nb_query = co_to_peer.crawl_ip()
-                stop = time.time()
+                    (peer_socket, (node_ip, node_port)) = self._listener_socket.accept()
 
-                self.measurements_manager.add_process_ip_stat(stop - start, nb_query, self.thread_nb)
+                    peer_socket.settimeout(Network_Constant.SOCKET_TIMEOUT)
 
-                self.add_IP_readed(node_ip)
+                    peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-            except Exception:
-                tracebacks = self.sender.get_tracebacks() + self.receiver.get_tracebacks()
-                if(co_to_peer is not None):
-                    tracebacks = tracebacks + co_to_peer.get_tracebacks()
-                tracebacks.append(sys.exc_info())
+                    connection = P2P_Connection(self._src_ip, self._src_port, self._src_service, node_ip, node_port,
+                                                None, peer_socket, self._network, self, self._blockchain_manager)
 
-                self.error_recording(self.thread_nb, tracebacks, node_ip)
+                    connection.start()
 
-                continue
+                    connection.wait_for_handshake()
+
+                    node_service = connection.get_node_service()
+
+                    self._connections[(node_ip, node_port, node_service, time.time())] = connection
+                except socket.timeout:
+                    continue
+
+        except Exception as err:
+            self.display_info(("Unexpected Failure - " + str(err)))
+            traceback.print_exc()
+            self.error_recording()
+
+        self._listener_socket.close()
+
+    def get_connection(self):
+        return self._connections
+
+    def get_nb_connection(self):
+        return len(self._connections)
+
+    def get_peer_pool(self):
+        return self._peers_pool
+
+    def get_nb_peer_in_pool(self):
+        return len(self._peers_pool)
+
+    def put_back_unactive(self, timeout):
+        nb_unactive = len(self._unactive_peers)
+        if nb_unactive > 0:
+            ordered_connections = sorted(self._unactive_peers, key=self._unactive_peers.get)
+
+            if time.time() - self._unactive_peers[ordered_connections[0]] > timeout:
+
+                i = 0
+                while i < nb_unactive and time.time() - self._unactive_peers[ordered_connections[i]] > timeout:
+                    self._unactive_peers.pop(ordered_connections[i])
+
+                    self._peers_pool.add(ordered_connections[i])
+
+                    i = i + 1
+
+    def remove_dead_connection(self):
+        # Check if all connections are still alive
+        for node_ip, node_port, node_service, node_timestamp in self._connections.copy():
+            if not self._connections[(node_ip, node_port, node_service, node_timestamp)].isAlive():
+                ip, port, service = self._connections[
+                    (node_ip, node_port, node_service, node_timestamp)].get_node_info()
+
+                self._connections.pop((node_ip, node_port, node_service, node_timestamp))
+
+                self._unactive_peers[(ip, port, service, node_timestamp)] = time.time()
+
+    def add_more_active_connection(self, nb_connection_missing):
+        # Connect to the peer in the pool
+        i = 0
+        while i < nb_connection_missing and len(self._peers_pool) > 0:
+            node_ip, node_port, node_service, node_timestamp = next(iter(self._peers_pool))
+
+            self.connect(node_ip, node_port, node_service, node_timestamp)
+
+            i = i + 1
+
+    def get_peers(self):
+        connections = self._connections.items()
+        for peer_info, connection in connections:
+
+            if connection.is_handshake_done() and connection.isAlive():
+
+                try:
+                    connection.ask_for_peers()
+
+                except SendMessageTimeoutException as err:
+                    self.display_info(str(err))
+
+                except BrokenConnectionException as err:
+                    connection.kill()
+                    self.display_info(str(err))
+
+    def add_peer_to_pool(self, peer_list):
+        for ip, (port, service, timestamp) in peer_list.items():
+            if not self.is_known(ip, port, service, timestamp):
+                self._peers_pool.add((ip, port, service, timestamp))
+
+    def send_peers(self, connection):
+
+        all_peers = set.union(self._peers_pool, set(self._unactive_peers.keys()), set(self._connections.keys()))
+
+        nb_peers_to_send = int(len(all_peers) / 10 + 1)
+
+        if nb_peers_to_send > 1000:
+            tmp = random.sample(all_peers, 1000)
+        else:
+            tmp = random.sample(all_peers, nb_peers_to_send)
+
+        peers_to_send = dict()
+        for node_ip, node_port, node_service, node_timestamp in tmp:
+            peers_to_send[node_ip] = (node_port, node_service, node_timestamp)
+
+        addr_msg = Addr_Message.Addr_Message(peers_to_send)
+
+        connection.send_msg(addr_msg)
+
+    def broadcast_blocks(self, blocks):
+        inv_list = list()
+        type = Protocol_Constant.INV_VECTOR_MSG_BLOCK
+
+        for block in blocks:
+            inv_list.append((type, block.getBlockHash()))
+
+    def broadcast_transactions(self, transactions):
+        inv_list = list()
+        type = Protocol_Constant.INV_VECTOR_MSG_TX
+
+        for transaction in transactions:
+            inv_list.append((type, transaction.__hash__()))
+
+    def is_known(self, ip, port, service, timestamp):
+        if ((ip, port, service, timestamp) in self._peers_pool) \
+                or ((ip, port, service, timestamp) in self._connections) \
+                or ((ip, port, service, timestamp) in self._unactive_peers):
+            return True
+        else:
+            return False
+
+    def connect(self, node_ip, node_port, node_service, node_timestamp):
+        peer_socket = None
+        # self.display_info(("Connection to " + str(node_ip) + " - " + str(node_port)))
+
+        try:
+            peer_socket = self.create_socket(node_ip, node_port)
+
+            connection = P2P_Connection(self._src_ip, self._src_port, self._src_service, node_ip, node_port,
+                                        node_service, peer_socket, self._network, self, self._blockchain_manager)
+
+            connection.start()
+
+            connection.bitcoin_handshake()
+
+            timestamp = time.time()
+
+            self._connections[(node_ip, node_port, node_service, timestamp)] = connection
+
+        except ConnectionException as err:
+            # self.display_info(("Fail to connect to " + str(node_ip) + " : " + str(err)))
+
+            if peer_socket is not None:
+                peer_socket.close()
+
+            self._unactive_peers[(node_ip, node_port, node_service, node_timestamp)] = time.time()
+
+        self._peers_pool.remove((node_ip, node_port, node_service, node_timestamp))
+
+    def create_socket(self, node_ip, node_port):
+
+        try:
+            addr_type = Protocol.get_ip_type(node_ip)
+
+        except Protocol.UnknownIPAddressTypeException:
+            raise ConnectionException("The IP Address provided is neither a valid IPv6 nor a valid IPv4 Address")
+
+        socket_node = None
+
+        if addr_type == "ipv4":
+            socket_node = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        elif addr_type == "ipv6":
+            socket_node = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+
+        socket_node.settimeout(Network_Constant.SOCKET_TIMEOUT)
+
+        socket_node.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        socket_node.bind((self._src_ip, 0))
+
+        try:
+            if addr_type == "ipv4":
+                socket_node.connect((node_ip, node_port))
+            elif addr_type == "ipv6":
+                socket_node.connect((node_ip, node_port, 0, 0))
+
+        except socket.timeout as err:
+            socket_node.close()
+            raise SocketTimeoutException(str(err))
+        except socket.error as err:
+            socket_node.close()
+            raise BrokenSocketException(str(err))
+
+        return socket_node
 
     def kill(self):
-        STOP_EVENT.set()
+        self.__stop_event.set()
 
-    def hasFinish(self):
-        return not ((not self.crawling_done) and (not STOP_EVENT.isSet()))
+        for connection in self._connections.values():
+            connection.kill()
 
-    def create_log_node_folder(self, node_ip):
-        directory = "Log/Log_" + str(node_ip) + "/"
-        try:
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-        except OSError:
-            self.displayer.display_message("Error: Failed to create directory: ", directory)
+        self._listener_thread.kill()
 
-    def error_recording(self, thread_nb, tracebacks, node_ip=None):
-        if (node_ip is not None):
-            self.create_log_node_folder(node_ip)
+    def join(self, **kwargs):
+        self.__stop_event.set()
 
-            stdout = open(("Log/Log_" + str(node_ip) + "/log_" + str(node_ip) + ".txt"), "a")
+        self._listener_thread.join()
 
-            stdout.write("Thread " + str(thread_nb) + " failed unexpectedly while querying " + str(node_ip) + ".\n\n")
+        for connection in self._connections.values():
+            connection.join()
 
-            for i in tracebacks:
-                traceback.print_tb(i[2], file=stdout)
-                stdout.write((str(i[1]) + "\n\n"))
+        Thread.join(self)
 
-            stdout.close()
-        else:
-            stdout = open("Log/log.txt", "a")
+    def kill_connections(self):
+        self.__stop_event.set()
 
-            stdout.write("Thread " + str(thread_nb) + " failed unexpectedly.\n\n")
+        for connection in self._connections.values():
+            connection.kill()
 
-            for i in tracebacks:
-                traceback.print_tb(i[2], file=stdout)
-                stdout.write((str(i[1]) + "\n\n"))
+    def join_connections(self):
+        for connection in self._connections.values():
+            connection.join()
 
-            stdout.close()
+    def kill_listener_thread(self):
+        self.__stop_event.set()
+
+    def join_listener_thread(self):
+        self.__stop_event.set()
+
+        self._listener_thread.join()
+
+    def display_info(self, msg):
+        print("Network Manager ", self._src_ip, " : ", msg)
+
+    def error_recording(self):
+        directory = "Log/"
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        directory = "Log/Log_Peer_" + self._src_ip + "/"
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        stdout = open(("Log/Log_Peer_" + self._src_ip + "/Network_Manager_Log.txt"), "a")
+
+        ex_type, ex, tb = sys.exc_info()
+        traceback.print_exception(ex_type, ex, tb, file=stdout)
+        stdout.write('\n\n')
+
+        stdout.close()

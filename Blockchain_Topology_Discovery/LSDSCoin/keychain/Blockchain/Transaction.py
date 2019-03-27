@@ -1,9 +1,8 @@
+import hashlib
+
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import utils, padding
-from keychain.BlockChainException import *
-
-import hashlib
 
 
 class Transaction:
@@ -69,12 +68,6 @@ class Transaction:
             utils.Prehashed(chosen_hash)
         )
 
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self._value == other.getValue() and self._key == other.getKey() and self._origin == other.getOrigin()
-        else:
-            return False
-
     def encode(self, string):
         hasher = hashlib.sha256()
         hasher.update(repr(self._key).encode(string))
@@ -94,3 +87,8 @@ class Transaction:
         hasher.update(repr(self._signature).encode("utf-8"))
 
         return int(hasher.hexdigest(), 16)
+
+
+    def __eq__(self, other):
+        return self._key == other.getKey() and self._value == other.getValue() and self._origin == other.getOrigin() \
+               and self._timestamp == other.getTimestamp() and self._signature == other.getSignature()

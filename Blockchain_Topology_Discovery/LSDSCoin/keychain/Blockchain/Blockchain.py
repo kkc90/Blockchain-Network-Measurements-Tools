@@ -1,7 +1,3 @@
-from keychain.Block import *
-from keychain.BlockChainException import *
-
-
 class Blockchain:
 
     def __init__(self):
@@ -56,12 +52,12 @@ class Blockchain:
         Meaning, are the sequence of hashes, and the proofs of the
         blocks correct?
         """
-        previous_hash = self._blocks[0].getBlockHash()
+        previous_hash = self._blocks[0].computeHash()
 
         for block in self._blocks[1:]:
-            hash = block.getBlockHash()
+            hash = block.computeHash()
 
-            if block.getPrevBlockHash() != previous_hash:
+            if block.getPrevBlockHash() != previous_hash or block.getBlockHash() != hash:
                 return False
 
             previous_hash = hash

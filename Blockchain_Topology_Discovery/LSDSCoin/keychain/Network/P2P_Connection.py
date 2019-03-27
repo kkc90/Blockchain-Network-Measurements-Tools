@@ -1,478 +1,435 @@
+import os
+import sys
+import traceback
+
 import socket
-import ipaddress
-import random
+
 import time
-import subprocess
+import random
+import math
 
-from Protocol import Protocol
-from Protocol.Bitcoin_Messages import *
+from threading import Thread, Event
 
-from CrawlingException import *
+from .Protocol import *
+from .Protocol.Bitcoin_Messages import *
+from .NetworkException import *
+from .Network_Constant import *
 
 
-class P2P_Connection:
-    ORIGIN_NETWORK = 'mainnet'
-    PROTOCOL_VERSION = 70015
-    SERVICE_PROVIDED = Protocol.NODE_NONE
+class P2P_Connection(Thread):
+    def __init__(self, src_ip, src_port, src_service, node_ip, node_port, node_service, socket_node, network,
+                 network_manager, blockchain_manager):
+        Thread.__init__(self)
 
-    # Timeouts
-    CONNECTION_TIMEOUT = 1 / 2
-    SOCKET_TIMEOUT = 1
-    PING_TIMEOUT = 5
-    ADDR_TIMEOUT = 20  # longuer because bigger packets
-    HANDSHAKE_TIMEOUT = 1
+        self._src_ip = src_ip
+        self._src_port = src_port
+        self._src_service = src_service
 
-    # Number of Attempts
-    CONNECTION_MAX_ATTEMPTS = 1
-    ADDR_QUERY_MAX_ATTEMPTS = 2
-    ASK_ALIVE_MAX_ATTEMPTS = 3
+        self._node_ip = node_ip
+        self._node_port = node_port
+        self._node_service = node_service
 
-    def __init__(self, target_service, node_ip, node_port, src_port, src_ip, measurements_manager, thread_nb, displayer,
-                 sender, receiver):
-        self.node_ip = node_ip
-        self.node_port = node_port
-        self.src_port = src_port
-        self.src_ip = src_ip
-        self.target_service = target_service
+        self._network = network
 
-        self.measurements_manager = measurements_manager
+        self._socket_node = socket_node
 
-        self.our_connection_nonce = float(
-            "nan")  # By sending this nonce in a Version packet, you will end the communication between the two peers
-        self.peer_connection_nonce = float(
-            "nan")  # By receiving this nonce in a Version packet, you will end the communication between the two peers
+        self._handshake_msg = dict()
 
-        self.pong_nonce = []
-        self.error = []
-        self.thread_nb = thread_nb
-        self.displayer = displayer
+        self._handshake_msg["Version Sent"] = False
+        self._handshake_msg["Verack Received"] = False
+        self._handshake_msg["Version Received"] = False
 
-        self.connected = False
-        self.continue_to_ask = True
+        self._connection_nonce_to_send = None
+        self._connection_nonce_to_rcv = None
 
-        self.sender = sender
-        self.receiver = receiver
+        self._ping_nonce = None
+        self._last_ping_timestamp = None
 
-        self.nb_peer_queried = -1
+        self._nb_timeout = 0
 
-        self.tracebacks = []
+        self._network_manager = network_manager
+        self._blockchain_manager = blockchain_manager
 
-        # self.calibrate_timeouts(1) # Takes a lot of computing time
+        self.__stop_event = Event()
 
-    def crawl_ip(self):
-        nb_attempts = 0
-
-        while nb_attempts < self.CONNECTION_MAX_ATTEMPTS:
-            self.display_progression(("Connection to " + self.node_ip + ":" + str(self.node_port) + " (attempts " + str(
-                nb_attempts) + ") ..."))
-
-            try:
-                self.connect_to_peer(self.node_ip, self.node_port, self.CONNECTION_TIMEOUT)
-                self.measurements_manager.add_active_peer(self.node_ip)
-                self.connected = True
-                self.nb_peer_queried = 0
-                break
-
-            # Expected Connection Exceptions
-            except ConnectionException as err:
-                # Displaying that the Connection Failed for the "nb_attempts" number of time
-                self.display_progression(
-                    "Connection Exception : Fail to connect to the peer (attempt " + str(nb_attempts + 1) + ")")
-
-                if nb_attempts == (self.CONNECTION_MAX_ATTEMPTS - 1):
-                    self.display_progression("Connection Exception : Fail to connect to the peer (" + str(
-                        self.CONNECTION_MAX_ATTEMPTS) + " attempts to connect)")
-                    self.measurements_manager.add_connection_failed_stat(repr(err))
-                    break
-
-                nb_attempts = nb_attempts + 1
-                continue
-
-        nb_attempts = 0
-
-        while self.connected and self.continue_to_ask and nb_attempts < self.ADDR_QUERY_MAX_ATTEMPTS:
-            try:
-                self.ask_alive()
-            except PeerQueryException :
-                self.display_progression("Peer Query Excpetion : Peer not alive.")
-                break
-            except DisconnectedSocketException:
-                self.connected = False
-                self.display_progression(
-                    "Disconnected Socket Exception : Connection with the peer has been closed unexpectedly.")
-                break
-
-            try:
-                self.ask_for_peers()
-            except PeerQueryException:
-                self.display_progression(
-                    "PeerQueryException : Query for other peers failed (attempt " + str(nb_attempts + 1) + ")")
-
-                if nb_attempts == (self.ADDR_QUERY_MAX_ATTEMPTS - 1):
-                    self.display_progression(
-                        "Peer Request Timeout : Too much attempts to query the peer without success.")
-                    break
-
-                nb_attempts = nb_attempts + 1
-                continue
-            except DisconnectedSocketException:
-                self.connected = False
-                self.display_progression(
-                    "Disconnected Socket Exception : Connection with the peer has been closed unexpectedly.")
-                break
-
-        self.sender.disconnect()
-        self.receiver.disconnect()
-
-        return self.nb_peer_queried
-
-    def connect_to_peer(self, node_ip, node_port, connection_timeout):
-
+    def run(self):
         try:
-            addr_type = self.get_ip_type(node_ip)
-        except UnknownIPAddressTypeException as err:
-            self.add_error(str(err))
-            raise ConnectionException(
-                "UnknownIPAddressType Exception : The IP Address provided is neither a valid IPv6 nor a valid IPv4 Address")
+            while not self.__stop_event.isSet():
+                self.listen()
 
-        if addr_type == "ipv4":
-            self.socket_node = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        elif addr_type == "ipv6":
-            self.socket_node = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            self.bitcoin_close_connection()
 
-        self.socket_node.settimeout(connection_timeout)
+        except BrokenConnectionException as err:
+            self.display_info(str(err))
 
-        self.socket_node.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        except Exception:
+            traceback.print_exc()
+            self.error_recording()
 
+        self._socket_node.close()
+
+        self.__stop_event.set()
+
+        #self.display_info(("Connection with " + str(self._node_ip) + " has been closed."))
+
+    def listen(self):
         try:
-            if addr_type == "ipv4":
-                start = time.time()
-                self.socket_node.connect((node_ip, node_port))
-                end = time.time()
-            elif addr_type == "ipv6":
-                start = time.time()
-                self.socket_node.connect((node_ip, node_port, 0, 0))
-                end = time.time()
-        except socket.timeout as err:
-            raise ConnectionException(repr(err))
-        except socket.error as err:
-            raise ConnectionException(repr(err))
+            rcv_msg = self.rcv_msg()
+            self.handle_msg(rcv_msg)
 
-        self.measurements_manager.add_peer_tcp_handshake_duration(self.node_ip, end - start)
+        except ReceiveMessageTimeoutException as err:
+            if self._nb_timeout < Network_Constant.NB_TIMEOUT_BEFORE_UNACTIVE:
+                self._nb_timeout = self._nb_timeout + 1
 
-        self.socket_node.settimeout(self.SOCKET_TIMEOUT)
+            else:
+                # If handshake has not been done or if pong has not been answered back from previous ping.
+                if (not self.is_handshake_done()) or (self._last_ping_timestamp is not None and time.time() -
+                                                      self._last_ping_timestamp < Network_Constant.PING_TIMEOUT):
+                    raise BrokenConnectionException(repr(err))
+                else:
+                    self.ask_alive()
 
-        self.sender.disconnect()
-        self.receiver.disconnect()
+        except SendMessageTimeoutException as err:
+            if self._nb_timeout < Network_Constant.NB_TIMEOUT_BEFORE_UNACTIVE:
+                self._nb_timeout = self._nb_timeout + 1
 
-        self.sender.connect(self.socket_node)
-        self.receiver.connect(self.socket_node)
+            else:
+                # If handshake has not been done or if pong has not been answered back from previous ping.
+                if (not self.is_handshake_done()) or (self._last_ping_timestamp is not None and time.time()
+                                                     - self._last_ping_timestamp < Network_Constant.PING_TIMEOUT):
+                    raise BrokenConnectionException(repr(err))
+                else:
+                    self.ask_alive()
 
-        start = time.time()
-        self.bitcoin_handshake()
-        end = time.time()
+    def join(self, **kwargs):
+        self.__stop_event.set()
 
-        self.measurements_manager.add_peer_bitcoin_handshake_duration(self.node_ip, end - start)
+        Thread.join(self)
+
+    def kill(self):
+        self.__stop_event.set()
+
+    def isAlive(self):
+        return not self.__stop_event.isSet()
+
+    def is_handshake_done(self):
+        return self._handshake_msg["Version Sent"] and self._handshake_msg["Version Received"] \
+               and self._handshake_msg["Verack Received"]
+
+    def get_node_service(self):
+        return self._node_service
+
+    def get_node_info(self):
+        return self._node_ip, self._node_port, self._node_service
+
+    def wait_for_handshake(self):
+        while self.is_handshake_done() and (not self.__stop_event.isSet()):
+            continue
 
     def bitcoin_handshake(self):
 
         nonce = random.randint(0, pow(2, 8))
-        self.connection_nonce = nonce
 
-        version_msg_to_send = Version_Message.Version_Message("version", self.PROTOCOL_VERSION, self.src_ip,
-                                                              self.src_port, self.SERVICE_PROVIDED, self.node_ip,
-                                                              self.node_port, self.target_service,
-                                                              self.connection_nonce)
+        self._connection_nonce_to_rcv = nonce
 
-        try:
-            self.send_msg(version_msg_to_send)
-        except SendMessageTimeoutException:
-            raise HandShakeFailureException(
-                "HandShakeFailure Exception : Fail to send a Version Message to the peer (Timeout).")
-        except SendMessageFailureException as err:
-            raise HandShakeFailureException(
-                "HandShakeFailure Exception : Fail to send a Version Message to the peer (Protocol Exception).")
-
-        msg_to_rcv = ["version", "verack"]
-        try:
-            while len(msg_to_rcv) > 0:
-                rcv_msg = self.rcv_msg(self.HANDSHAKE_TIMEOUT)
-
-                command = rcv_msg.getCommand()
-                if command in msg_to_rcv:
-                    try:
-                        self.treat_msg(rcv_msg)
-                    except PacketTreatmentException:
-                        raise HandShakeFailureException(
-                            "HandShakeFailure Exception : Fail to treat " + rcv_msg.getCommand() + " Message from the peer.")
-                    if command == "version":
-                        self.peer_connection_nonce = rcv_msg.getVersionNonce()
-                    msg_to_rcv.remove(command)
-                else:
-                    raise HandShakeFailureException(
-                        "HandShakeFailure Exception : Reception of a Unexpected Message : " + command + " (VERSION/VERACK Messages expected).")
-        except ReceiveMessageTimeoutException:
-            raise HandShakeFailureException(
-                "HandShakeFailure Exception : Fail to receive the VERSION/VERACK Messages from the peer (Timeout).")
-
-        if len(msg_to_rcv) > 0:
-            raise HandShakeFailureException(
-                "HandShakeFailure Exception : Fail to receive the VERSION/VERACK Messages from the peer (timeout).")
-
-        verack_msg_to_send = Verack_Message.Verack_Message("verack")
+        version_msg = Version_Message.Version_Message(Network_Constant.PROTOCOL_VERSION, self._src_ip,
+                                                               self._src_port, self._src_service, self._node_ip,
+                                                               self._node_port, self._node_service, nonce)
 
         try:
-            self.send_msg(verack_msg_to_send)
-        except SendMessageTimeoutException:
-            raise HandShakeFailureException(
-                "HandShakeFailure Exception : Fail to send the VERACK Message to the peer (Timeout).")
-        except SendMessageFailureException as err:
-            raise HandShakeFailureException(
-                ("HandShakeFailure Exception : Fail to send the VERACK Message to the peer.\n" + str(err)))
+            self.send_msg(version_msg)
 
-    def ask_for_peers(self):
-        request_successfull = False
-        self.display_progression("Querying for other Peers ...")
+        except SendMessageException:
+            raise HandShakeFailureException("HandshakeFailure Exception: Fail to execute the handshake (Timeout).")
 
-        if self.bitcoin_ask_for_peers():
-            request_successfull = True
+        self._handshake_msg["Version Sent"] = True
 
-        if not request_successfull:
-            raise PeerQueryException("PeerQuery Exception : Fail to ask the peers for new peers.")
-        else:
-            self.display_progression("Query for other Peers successfull.")
+        start_connection = time.time()
 
-    def ask_alive(self):
-        request_successfull = False
-        nb_attempts = 0
+        while not self.__stop_event.isSet() and time.time() - start_connection < Network_Constant.HANDSHAKE_TIMEOUT \
+                and not self.is_handshake_done():
+            continue
 
-        while nb_attempts < self.ASK_ALIVE_MAX_ATTEMPTS:
-            try:
-                self.bitcoin_ask_alive()
-                request_successfull = True
-                break
-            except AskAliveException:
-                nb_attempts = nb_attempts + 1
-                continue
-
-        if not request_successfull:
-            raise PeerQueryException("PeerQuery Exception : Peer considered as not alive (no answer to PING).")
-
-    def bitcoin_ask_alive(self):
-        nonce = random.randint(0, pow(2, 8))
-        msg_to_send = Ping_Message.Ping_Message("ping", nonce)
-
-        try:
-            self.send_msg(msg_to_send)
-        except SendMessageTimeoutException:
-            raise AskAliveException("AskAlive Exception : Fail to send the PING Message from the peer (Timeout).")
-        except SendMessageFailureException as err:
-            raise AskAliveException(
-                ("AskAlive Exception : Fail to send a GetAddr Message to the peer (Protocol Exception).\n" + str(err)))
-
-        try:
-            command = ""
-            start = time.time()
-            timeout = self.PING_TIMEOUT
-
-            while command != "pong" and command != "ping":
-                if (time.time() - start) > timeout:
-                    raise AskAliveException(
-                        "AskAlive Exception : Fail to receive Pong Message from the peer (Timeout).")
-
-                rcv_msg = self.rcv_msg(self.PING_TIMEOUT)
-
-                start_treat_msg = time.time()
-                try:
-                    self.treat_msg(rcv_msg)
-                except PacketTreatmentException:
-                    raise AskAliveException(
-                        "AskAlive Exception : Fail to treat " + rcv_msg.getCommand() + " Message from the peer.")
-
-                timeout = timeout + (time.time() - start_treat_msg)
-                command = rcv_msg.getCommand()
-        except ReceiveMessageTimeoutException:
-            raise AskAliveException("AskAlive Exception : Fail to receive Pong Message from the peer (Timeout).")
-
-    def bitcoin_ask_for_peers(self):
-        getaddr_msg_to_send = GetAddr_Message.GetAddr_Message("getaddr")
-
-        try:
-            self.send_msg(getaddr_msg_to_send)
-        except SendMessageTimeoutException:
-            raise PeerQueryException("PeerQuery Exception : Fail to send the GETADDR Message from the peer (Timeout).")
-        except SendMessageFailureException as err:
-            raise PeerQueryException(
-                ("PeerQuery Exception : Fail to send a GetAddr Message to the peer (Protocol Exception).\n" + str(err)))
-
-        try:
-            command = ""
-            start = time.time()
-            timeout = self.ADDR_TIMEOUT
-            while command != "addr":
-                if (time.time() - start) > timeout:
-                    raise PeerQueryException(
-                        "PeerQuery Exception : Fail to receive ADDR Message from the peer (Timeout).")
-
-                rcv_msg = self.rcv_msg(self.ADDR_TIMEOUT)
-
-                command = rcv_msg.getCommand()
-
-
-                start_treat_msg = time.time()
-                try:
-                    self.treat_msg(rcv_msg)
-                except PacketTreatmentException:
-                    raise PeerQueryException(
-                        "PeerQuery Exception : Fail to treat " + rcv_msg.getCommand() + " Message from the peer.")
-                timeout = timeout + (time.time() - start_treat_msg)
-
-        except ReceiveMessageTimeoutException:
-            raise PeerQueryException("PeerQuery Exception : Fail to receive the ADDR Message from the peer (Timeout).")
-
-        if rcv_msg.isAdvertisement(self.node_ip):
-            return False
-        else:
-            return True
+        if not self.is_handshake_done():
+            raise HandShakeFailureException("HandshakeFailure Exception: Fail to execute the handshake (Timeout).")
 
     def bitcoin_close_connection(self):
-        self.display_progression("Connection to " + self.node_ip + ":" + str(self.node_port) + " being closed ...")
+        if self._connection_nonce_to_rcv is not None:
+            version_msg = Version_Message.Version_Message(Network_Constant.PROTOCOL_VERSION,
+                                                                   self._src_ip, self._src_port, self._src_service,
+                                                                   self._node_ip, self._node_port,
+                                                                   Protocol_Constant.NODE_NETWORK,
+                                                                   self._connection_nonce_to_send)
 
-        self.sender.disconnect()
-        self.receiver.disconnect()
+            self.send_msg(version_msg)
 
-        self.socket_node.shutdown(socket.SHUT_RDWR)
-        self.socket_node.close()
+            self._socket_node.shutdown(socket.SHUT_WR)
 
-        self.display_progression("Connection to " + self.node_ip + ":" + str(self.node_port) + " closed successfully.")
+    def ask_for_peers(self, block=False):
+        getaddr_msg = GetAddr_Message.GetAddr_Message()
 
-    def send_msg(self, bitcoin_msg, timeout=1):
-        self.sender.send_msg(bitcoin_msg, timeout)
+        self.send_msg(getaddr_msg)
 
-    def rcv_msg(self, timeout):
-        """
-        Wait for a message for [timeout] seconds and return the message or throw a Queue.Empty Error if None is
-        available.
-        :param timeout: nb of seconds to wait for a message
-        :return: the most ancient message on the queue
-        """
+    def ask_alive(self):
+        nonce = random.randint(0, pow(2, 8))
 
-        result = self.receiver.rcv_msg(timeout)
+        ping_msg = Ping_Message.Ping_Message(nonce)
+
+        try:
+            self.send_msg(ping_msg)
+        except SendMessageTimeoutException:
+            raise BrokenConnectionException("BrokenConnection Exception: Fail to ask the peer for heartbeat.")
+
+        self._ping_nonce = nonce
+
+        self._last_ping_timestamp = time.time()
+
+    def send_msg(self, bitcoin_msg, block=False, timeout=math.inf):
+        start_send = time.time()
+        while time.time() - start_send < timeout:
+            try:
+                self.bitcoin_send_msg(bitcoin_msg)
+
+                self._nb_timeout = 0
+
+                #self.display_info((str(self._src_ip) + " : " + str(bitcoin_msg.getCommand()) + " sent"))
+
+                return
+
+            except socket.timeout:
+                if block is True:
+                    continue
+                else:
+                    raise SendMessageTimeoutException("SendMessageTimeout Exception: "
+                                                      "Fail to receive a Packet (Timeout).")
+            except socket.error:
+                raise BrokenConnectionException(("BrokenConnection Exception: Fail to send "
+                                                 + bitcoin_msg.getCommand() + " Packet."))
+
+        raise SendMessageTimeoutException("SendMessageTimeout Exception: "
+                                          "Fail to receive a Packet (Timeout).")
+
+    def bitcoin_send_msg(self, bitcoin_msg):
+
+        msg = Protocol.get_packet(bitcoin_msg, self._network)
+
+        self._socket_node.send(msg, socket.MSG_WAITALL)
+
+    def rcv_msg(self, block=False, timeout=math.inf):
+        result = None
+
+        start_rcv = time.time()
+        while time.time() - start_rcv < timeout:
+            try:
+                result = self.bitcoin_rcv_msg()
+
+                self._nb_timeout = 0
+
+                break
+
+            except socket.timeout:
+                if block is True:
+                    continue
+                else:
+                    raise ReceiveMessageTimeoutException("ReceiveMessageTimeout Exception: "
+                                                         "Fail to receive a Packet (Timeout).")
+            except socket.error:
+                raise BrokenConnectionException("BrokenConnection Exception: Fail to receive a Packet.")
+
+        if result is None:
+            ReceiveMessageTimeoutException("ReceiveMessageTimeout Exception: "
+                                           "Fail to receive a Packet (Timeout).")
 
         return result
 
-    def treat_msg(self, rcv_msg):
+    def bitcoin_rcv_msg(self):
+        magic_nb = bytearray(self._socket_node.recv(4, socket.MSG_WAITALL))
+
+        command = bytearray(self._socket_node.recv(12, socket.MSG_WAITALL))
+
+        length = bytearray(self._socket_node.recv(4, socket.MSG_WAITALL))
+        payload_length = int.from_bytes(length, byteorder='little')
+
+        checksum = bytearray(self._socket_node.recv(4, socket.MSG_WAITALL))
+
+        to_read = payload_length
+
+        readed = 0
+        payload = bytearray()
+
+        # So that the socket doesn't timeout
+        while to_read > 0:
+            if to_read > 4:
+                readed = 4
+            else:
+                readed = to_read
+
+            msg = bytearray(self._socket_node.recv(readed, socket.MSG_WAITALL))
+            payload = payload + msg  # See TCP Protocol for Bits Order
+            to_read = to_read - len(msg)
+
+        net = Protocol.get_origin_network(magic_nb)
+
+        if net != self._network:
+            raise ProtocolException("Protocol Exception : The Origin Network " + net + " is unvalid.")
+
+        result = Protocol.treat_packet(command, length, checksum, payload)
+
+        return result
+
+    def handle_msg(self, rcv_msg):
         command = rcv_msg.getCommand()
 
         if command == "version":
-            self.measurements_manager.add_version_stat(rcv_msg.getVersion())
-            self.measurements_manager.add_IP_Service(self.node_ip, rcv_msg.getSenderService())
+            self.treat_version_msg(rcv_msg)
 
         elif command == "verack":
-            None
+            self.treat_verack_msg(rcv_msg)
+
         elif command == "getaddr":
-            None
+            self.treat_getaddr_msg(rcv_msg)
+
         elif command == "addr":
-            if not rcv_msg.isAdvertisement(self.node_ip):
-                nb_rcv = rcv_msg.get_IP_Nb()
+            self.treat_addr_msg(rcv_msg)
 
-                if nb_rcv < 999:
-                    self.continue_to_ask = False
-                self.nb_peer_queried = self.nb_peer_queried + nb_rcv
-
-                nb_rcv = rcv_msg.get_IP_Nb()
-
-                nb_new = self.measurements_manager.treatAddrPacket(rcv_msg)
-
-                self.measurements_manager.add_peer_queried(self.node_ip, nb_rcv)
         elif command == "ping":
-            msg = Pong_Message.Pong_Message("pong", rcv_msg.getPingNonce())
-
-            try:
-                self.send_msg(msg)
-            except SendMessageTimeoutException:
-                raise PacketTreatmentException(
-                    "PacketTreatment Exception : Fail to anwer the PING Message from the peer (Timeout).")
-            except SendMessageFailureException as err:
-                raise PacketTreatmentException(
-                    ("PacketTreatment Exception : Fail to answer the PING Message of the peer.\n" + str(err)))
+            self.treat_ping_msg(rcv_msg)
 
         elif command == "pong":
-            None
+            self.treat_pong_msg(rcv_msg)
+
+        elif command == "block":
+            self.treat_block_msg(rcv_msg)
+
+        elif command == "getblock":
+            self.treat_getblock_msg(rcv_msg)
+
+        elif command == "getdata":
+            self.treat_getdata_msg(rcv_msg)
+
+        elif command == "getheader":
+            self.treat_getheader_msg(rcv_msg)
+
+        elif command == "inv":
+            self.treat_inv_msg(rcv_msg)
+
+        elif command == "notfound":
+            self.treat_notfound_msg(rcv_msg)
+
+        elif command == "tx":
+            self.treat_tx_msg(rcv_msg)
+
         else:
-            raise UnsupportedBitcoinCommandException(
+            raise Protocol.UnsupportedBitcoinCommandException(
                 "UnsupportedBitcoinCommand Exception : The command " + command + " is not supported.")
 
-    def get_ip_type(self, ip_addr):
-        try:
-            ip = ipaddress.ip_address(ip_addr)
-        except ValueError:
-            error = "UnknownIPAddressType Exception : Unknown IP Address type of " + ip_addr + "."
-            raise UnknownIPAddressTypeException(error)
+    def treat_version_msg(self, version_msg):
+        # Version Message Sent for executing the Handshake
+        if not self.is_handshake_done() and self._handshake_msg["Version Received"] is not True:
+            verack_msg = Verack_Message.Verack_Message()
 
-        version = ip.version
-        if version == 4:
-            return "ipv4"
-        if version == 6:
-            return "ipv6"
+            self.send_msg(verack_msg)
 
-    def display_progression(self, string):
-        if self.displayer is not None:
-            if self.connected:
-                self.displayer.display_thread_progression(("Connected to " + str(self.node_ip) + " - " + string),
-                                                          self.thread_nb)
+            self._connection_nonce_to_send = version_msg.getVersionNonce()
+
+            self._node_service = version_msg.getSenderService()
+
+            # Version Message Sent First by the peer
+            if self._handshake_msg["Version Sent"] is not True:
+                nonce = random.randint(0, pow(2, 8))
+
+                self._connection_nonce_to_rcv = nonce
+
+                version_msg = Version_Message.Version_Message(Network_Constant.PROTOCOL_VERSION,
+                                                                       self._src_ip, self._src_port, self._src_service,
+                                                                       self._node_ip, self._node_port,
+                                                                       Protocol_Constant.NODE_NETWORK, nonce)
+
+                self.send_msg(version_msg)
+
+                self._handshake_msg["Version Sent"] = True
+                self._handshake_msg["Version Received"] = True
+
+            # Version Message Sent by the peer to answer your Version Message
             else:
-                self.displayer.display_thread_progression(("Not Connected to " + str(self.node_ip) + " - " + string),
-                                                          self.thread_nb)
+                self._handshake_msg["Version Received"] = True
 
-    def add_error(self, error):
-        self.error.append(error)
+        else:
 
-    def get_tracebacks(self):
-        return self.tracebacks
+            # Version Message Sent to end the Connection
+            if version_msg.getVersionNonce() == self._connection_nonce_to_rcv:
+                self._connection_nonce_to_rcv = None
+                self.__stop_event.set()
 
-    def calibrate_timeouts(self, nb_pings=3):
-        """
-        This function will calibrate the different timeouts value thanks to the estimation of
-        the rtt (done with consecutive ping(s)).
-        :return: void
-        """
-        stat = self.ping(self.node_ip, nb_pings)
+    def treat_verack_msg(self, verack_msg):
+        if self._handshake_msg["Version Sent"] is True:
+            self._handshake_msg["Verack Received"] = True
 
-        if stat is not None:
-            # PING PACKET is 64 Bytes
-            per_bytes_rtt = (float(stat["avg"]) / 64) / 1000  # seconds
+    def treat_ping_msg(self, ping_msg):
+        msg = Pong_Message.Pong_Message(ping_msg.getPingNonce())
 
-            self.PING_TIMEOUT = (per_bytes_rtt / 2) * 92 + (
-                        per_bytes_rtt / 2) * 92  # Time for the PING to reach its destination + Time for the PONG to reach you back
-            self.ADDR_TIMEOUT = (per_bytes_rtt / 2) * 84 + (
-                        per_bytes_rtt / 2) * 30027  # Time for the GETADDR to reach its destination + Time for the ADDR to reach you back (WORSE CASE = ADDR with 1000 addresses)
-            self.HANDSHAKE_TIMEOUT = (per_bytes_rtt / 2) * 170 + ((per_bytes_rtt / 2) * 170 + (
-                        per_bytes_rtt / 2) * 84)  # Time for the VERSION to reach its destination + Time for the VERSION/VERACK message to reach you back.
+        self.send_msg(msg)
 
-    def ping(self, address, count=3):
-        """
-        This command is sending [count] 56 Bytes ping(s) (+ 8 Bytes ICMP Header) to the node
-        having the address [address].
-        :param address: address of the node to whom you wants to send the pings
-        :param count: nb of pings you would like to send
-        :return: RTT statistics
-        """
-        cmd = ["ping", ("-c " + str(count)), address, "-s 56"]
-        try:
-            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
-        except subprocess.CalledProcessError:
-            return None
+    def treat_pong_msg(self, pong_msg):
+        if self._ping_nonce == pong_msg.getPongNonce():
+            self._ping_nonce = None
+            self._last_ping_timestamp = None
 
-        lines = output.split("\n")
-        total = lines[-2].split(",")[3].split()[1]
-        timing = lines[-1].split()[3].split('/')
+    def treat_getaddr_msg(self, getaddr_msg):
+        self._network_manager.send_peers(self)
 
-        return {
-            'type': "rtt",
-            "min": timing[0],
-            "avg": timing[1],
-            "max": timing[2],
-            "mdev": timing[3],
-            "total": total
-        }
+    def treat_addr_msg(self, addr_msg):
+        peer_list = addr_msg.get_ip_table()
+        self._network_manager.add_peer_to_pool(peer_list)
+
+    def treat_block_msg(self, block_msg):
+        pass
+
+    def treat_getblock_msg(self, getblock_msg):
+        pass
+
+    def treat_getdata_msg(self, getdata_msg):
+        pass
+
+    def treat_getheader_msg(self, getheader_msg):
+        pass
+
+    def treat_inv_msg(self, inv_msg):
+        pass
+
+    def treat_notfound_msg(self, notfound_msg):
+        pass
+
+    def treat_tx_msg(self, tx_msg):
+        pass
+
+    def display_info(self, msg):
+        connected = self.is_handshake_done()
+        if connected is True:
+            print("Peer ", self._src_ip, " - Connected to ", self._node_ip, " : ", msg)
+        else:
+            print("Peer ", self._src_ip, " - Not Connected to ", self._node_ip, " : ", msg)
+
+    def error_recording(self):
+        directory = "Log/"
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        directory = "Log/Log_Peer_" + self._src_ip + "/"
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        directory = "Log/Log_Peer_" + self._src_ip + "/Connections/"
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        stdout = open(("Log/Log_Peer_" + self._src_ip + "/Connections/" + self._node_ip + ".txt"), "a")
+
+        ex_type, ex, tb = sys.exc_info()
+        traceback.print_exception(ex_type, ex, tb, file=stdout)
+        stdout.write('\n\n')
+
+        stdout.close()

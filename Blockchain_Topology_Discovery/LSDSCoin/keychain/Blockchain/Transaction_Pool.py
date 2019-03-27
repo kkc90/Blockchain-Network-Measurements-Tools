@@ -1,6 +1,3 @@
-from keychain.BlockChainException import *
-
-
 class Transaction_Pool:
     def __init__(self, transaction_pool=None):
 
@@ -47,6 +44,10 @@ class Transaction_Pool:
 
         return transaction_list
 
+    def verify_transaction(self, transaction):
+        public_key = transaction.getOrigin()
+        transaction.verify(public_key)
+
     def add_transaction(self, transaction):
         """Adds a transaction to your current list of transactions,
         and broadcasts it to your Blockchain network.
@@ -54,7 +55,7 @@ class Transaction_Pool:
         If the `mine` method is called, it will collect the current list
         of transactions, and attempt to mine a block with those.
         """
-        #TODO --> add public key
+
         public_key = transaction.getOrigin()
         transaction.verify(public_key)
         self._transaction_pool.add(transaction)

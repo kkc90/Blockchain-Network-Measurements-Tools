@@ -1,14 +1,13 @@
 import time
 
-from keychain.BlockChainException import *
-from merkletools import *
-
 
 class Block:
     def __init__(self, index, prev_block_hash, transaction_list, timestamp=None, nonce=None):
         """Describe the properties of a block."""
         self._index = index
         self._prev_block_hash = prev_block_hash
+
+        self._hash = None
 
         if timestamp is not None:
             self._timestamp = timestamp
@@ -20,9 +19,7 @@ class Block:
         if len(transaction_list) > 0 or index == 0:
             self._transaction_list = set(transaction_list)
         else:
-            raise ZeroTransactionBlockException("Error: Block initialized with no transactions")
-
-        self._merkle_tree = MerkleTools()
+            raise ZeroTransactionBlockException("Block initialized with no transactions")
 
     def getIndex(self):
         return self._index
@@ -33,18 +30,27 @@ class Block:
     def getTimestamp(self):
         return self._timestamp
 
-    def getBlockHash(self):
+    def computeHash(self):
         hasher = hashlib.sha256()
         hasher.update(repr(self._prev_block_hash).encode("utf-8"))
         hasher.update(repr(self._transaction_list).encode("utf-8"))
         hasher.update(repr(self._timestamp).encode("utf-8"))
 
-        if (self._nonce is None):
-            raise UnminedBlockException("Error: The block considered has not been mined yet.")
+        if self._nonce is None:
+            raise UnminedBlockException("The block considered has not been mined yet.")
         else:
             hasher.update(repr(self._nonce).encode("utf-8"))
 
         return hasher.digest()
+
+    def getBlockHash(self):
+        if self._hash is None:
+            raise UnminedBlockException("The block considered has not been mined yet.")
+
+        return self._hash
+
+    def setBlockHash(self, hash):
+        self._hash = hash
 
     def setBlockNonce(self, nonce):
         self._nonce = nonce;
@@ -62,6 +68,10 @@ class Block:
     def getTransactions(self):
         """Returns the list of transactions associated with this block."""
         return self._transaction_list
+
+    def contains(self, transaction):
+        if transaction in self._transaction_list:
+            return
 
     def __hash__(self):
         hasher = hashlib.sha256()
