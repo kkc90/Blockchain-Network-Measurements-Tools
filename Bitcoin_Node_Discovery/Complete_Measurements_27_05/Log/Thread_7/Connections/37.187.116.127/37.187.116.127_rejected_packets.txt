@@ -1,0 +1,6 @@
+Reject Message has been received from 37.187.116.127.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

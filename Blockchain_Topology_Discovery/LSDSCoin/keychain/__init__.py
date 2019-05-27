@@ -1,2 +1,2 @@
-__all__ = ["Blockchain", "Network", "store", "Util"]
+__all__ = ["Blockchain", "Network", "store", "monitor", "Util"]
 

@@ -1,0 +1,6 @@
+Reject Message has been received from 80.181.95.46.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

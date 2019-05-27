@@ -1,0 +1,6 @@
+Reject Message has been received from 95.216.172.79.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

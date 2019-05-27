@@ -6,8 +6,9 @@ COMMAND = {"version": Version_Message.treat_version_packet, "verack": Verack_Mes
            "getaddr": GetAddr_Message.treat_getaddr_packet, "addr": Addr_Message.treat_addr_packet,
            "ping": Ping_Message.treat_ping_packet, "pong": Pong_Message.treat_pong_packet,
            "inv": Inv_Message.treat_inv_packet, "getdata": GetData_Message.treat_getdata_packet,
-           "getblock": GetBlock_Message.treat_getblock_packet, "tx": Tx_Message.treat_tx_packet,
-           "block": Block_Message.treat_block_packet}
+           "getheader" : GetHeader_Message.treat_getheader_packet,"getblock": GetBlock_Message.treat_getblock_packet,
+           "tx": Tx_Message.treat_tx_packet, "block": Block_Message.treat_block_packet,
+           "mempool": MemPool_Message.treat_mempool_packet}
 
 """
                 TREAT A PACKET THAT HAS BEEN RECEIVED
@@ -33,7 +34,7 @@ def treat_packet(command_bytes, length, checksum, payload):
     command = get_command(command_bytes)
 
     if command in COMMAND:
-        result = COMMAND[command](payload)
+        result, payload_left = COMMAND[command](payload)
     else:
         raise UnsupportedBitcoinCommandException(
             ("UnsupportedBitcoinCommand Exception : Command " + command + " is not supported."))
@@ -73,8 +74,7 @@ def get_packet(Bitcoin_Message, origin_network):
         bitcoin_msg.append(9)
         bitcoin_msg.append(7)
     else:
-        raise UnknownOriginNetworkException("Unvalid bitcoin network - Valid networks are mainnet/testnet/testnet3/")
-
+        raise UnknownOriginNetworkException("Unvalid bitcoin network - Valid networks are mainnet/testnet/testnet3")
     # Command ID (12 bytes)
     counter = 0
     for i in command:

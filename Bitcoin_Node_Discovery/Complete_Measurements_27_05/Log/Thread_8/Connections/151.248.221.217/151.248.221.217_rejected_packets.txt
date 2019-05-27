@@ -1,0 +1,6 @@
+Reject Message has been received from 151.248.221.217.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

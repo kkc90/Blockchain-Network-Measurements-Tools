@@ -1,0 +1,6 @@
+Reject Message has been received from 103.29.69.57.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

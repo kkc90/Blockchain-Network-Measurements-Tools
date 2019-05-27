@@ -1,0 +1,6 @@
+Reject Message has been received from 125.236.215.133.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

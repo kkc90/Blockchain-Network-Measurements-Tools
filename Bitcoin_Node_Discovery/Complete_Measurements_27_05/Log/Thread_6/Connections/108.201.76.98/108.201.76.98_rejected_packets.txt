@@ -1,0 +1,6 @@
+Reject Message has been received from 108.201.76.98.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

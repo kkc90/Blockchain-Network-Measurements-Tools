@@ -1,0 +1,6 @@
+Reject Message has been received from 111.221.168.44.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

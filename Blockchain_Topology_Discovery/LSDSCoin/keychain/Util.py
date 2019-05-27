@@ -66,3 +66,17 @@ def get_private_key(private_key_file):
     store_key(private_key, private_key_file, password)
 
     return private_key
+
+
+def public_key_to_bytes(public_key):
+    return public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+
+def bytes_to_public_key(public_key_bytes):
+    return serialization.load_pem_public_key(
+        data=public_key_bytes,
+        backend=default_backend()
+    )

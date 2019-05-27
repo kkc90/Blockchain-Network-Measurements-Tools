@@ -1,10 +1,12 @@
 import hashlib
 import ipaddress
-import math
 import time
+
+import math
 
 from .ProtocolException import *
 from .Protocol_Constant import *
+from ...Util import *
 
 """
                 FUNCTION THAT ARE NEEDED FOR RECEIVING PACKETS
@@ -13,22 +15,27 @@ from .Protocol_Constant import *
 
 def treat_variable_length_integer(payload):
     nb_entries = 0
+    payload_left = payload
 
     if len(payload) > 0:
         format = payload[0]
 
         if format == 0xFD:
             nb_entries = int.from_bytes(payload[1:3], byteorder="little")
+            payload_left = payload[3::]
 
         elif format == 0xFE:
             nb_entries = int.from_bytes(payload[1:5], byteorder="little")
+            payload_left = payload[5::]
 
         elif format == 0xFF:
             nb_entries = int.from_bytes(payload[1:9], byteorder="little")
+            payload_left = payload[9::]
         else:
             nb_entries = format
+            payload_left = payload[1::]
 
-    return nb_entries
+    return nb_entries, payload_left
 
 
 def treat_variable_length_list(payload):
@@ -56,38 +63,7 @@ def treat_variable_length_list(payload):
     return nb_entries, entries
 
 
-def treat_tx_field(payload):
-    version = int.from_bytes(payload[0:4], byteorder="little")
-
-    payload_left = payload[4::]
-
-    flag = False
-    if payload_left[0:2] == (1).to_bytes(2, byteorder="little"):
-        flag = True
-        payload_left = payload_left[2::]
-
-    nb_entries_tx_in, payload_left = treat_variable_length_list(payload_left)
-
-    tx_in_list, payload_left = treat_tx_in_list_bytes(nb_entries_tx_in, payload_left)
-
-    nb_entries_tx_out, payload_left = treat_variable_length_list(payload_left)
-
-    tx_out_list, payload_left = treat_tx_out_list_bytes(nb_entries_tx_out, payload_left)
-
-    tx_witness_list = None
-    if flag is True and nb_entries_tx_in > 0:
-        nb_entries_tx_witness, payload_left = treat_variable_length_list(payload_left)
-
-        tx_witness_list, payload_left = treat_tx_witness_list_bytes(nb_entries_tx_witness, payload_left)
-
-    lock_time = int.from_bytes(payload_left[0:4], byteorder="little")
-
-    payload_left = payload_left[4::]
-
-    return version, tx_in_list, tx_out_list, tx_witness_list, lock_time, payload_left
-
-
-def treat_tx_in_list_bytes(nb_entries, tx_in_bytes):
+def treat_bitcoin_tx_in_list_bytes(nb_entries, tx_in_bytes):
     tx_in_list = list()
 
     i = 0
@@ -127,7 +103,7 @@ def treat_signature_script_bytes(signature_script_bytes):
     return signature_script
 
 
-def treat_tx_out_list_bytes(nb_entries, tx_out_bytes):
+def treat_bitcoin_tx_out_list_bytes(nb_entries, tx_out_bytes):
     tx_out_list = list()
 
     i = 0
@@ -186,13 +162,13 @@ def treat_inv_list(nb_entries, inv_list):
               i * Protocol_Constant.INVENTORY_VECTOR_SIZE:i * Protocol_Constant.INVENTORY_VECTOR_SIZE + Protocol_Constant.INVENTORY_VECTOR_SIZE]
 
         object_type = int.from_bytes(inv[0:4], byteorder="little")
-        object_hash = inv[4:36].decode(Protocol_Constant.STRING_ENCODING)
+        object_hash = int.from_bytes(inv[4:36], byteorder="little")
 
         inv_table.append((object_type, object_hash))
 
         i = i + 1
 
-    return inv_table
+    return inv_table, inv_list[i*Protocol_Constant.INVENTORY_VECTOR_SIZE::]
 
 
 def treat_network_address(net_addr, version_msg=False):
@@ -213,13 +189,13 @@ def treat_network_address(net_addr, version_msg=False):
 
 def treat_block_header(block_header_bytes):
     version = int.from_bytes(block_header_bytes[0:4], byteorder="little")
-    prev_block_hash = block_header_bytes[4:36].decode("utf-8")
-    merkle_root = block_header_bytes[36:68].decode("utf-8")
+    prev_block_hash = int.from_bytes(block_header_bytes[4:36], byteorder="little")
+    merkle_root = int.from_bytes(block_header_bytes[36:68], byteorder="little")
     timestamp = int.from_bytes(block_header_bytes[68:72], byteorder="little")
     bits = int.from_bytes(block_header_bytes[72:76], byteorder="little")
     nonce = int.from_bytes(block_header_bytes[76:80], byteorder="little")
 
-    txn_count = treat_variable_length_integer(block_header_bytes[80::])
+    txn_count, payload_left = treat_variable_length_integer(block_header_bytes[80::])
 
     return version, prev_block_hash, merkle_root, timestamp, bits, nonce, txn_count
 
@@ -231,17 +207,18 @@ def treat_block_locator_bytes(payload):
 
     i = 0
     while i < nb_entries:
-        block_locator_hash_bytes = entries[
-                                   i * Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE:i * Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE + Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE]
-        if len(block_locator_hash_bytes) < Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE:
-            return block_locator_list
+        block_locator_hash_bytes = entries[0:Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE]
 
-        block_locator_hash = block_locator_hash_bytes.decode("utf-8")
-        block_locator_list.append(block_locator_hash)
+        if len(block_locator_hash_bytes) < Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE:
+            return block_locator_list, entries
+
+        block_locator_list.append(int.from_bytes(block_locator_hash_bytes, byteorder="little"))
+
+        entries = entries[(Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE + Protocol_Constant.BLOCK_LOCATOR_HASH_SIZE)::]
 
         i = i + 1
 
-    return block_locator_list
+    return block_locator_list, entries
 
 
 def decode_ip(ip):
@@ -298,8 +275,8 @@ def block_header_to_bytes(version, prev_block_hash, merkle_root, timestamp, bits
     block_header_bytes = bytearray()
 
     version_bytes = version.to_bytes(4, byteorder="little")
-    prev_block_hash_bytes = prev_block_hash.encode("utf-8")
-    merkle_root_bytes = merkle_root.encode("utf-8")
+    prev_block_hash_bytes = int.from_bytes(prev_block_hash, byteorder="little")
+    merkle_root_bytes = int.from_bytes(merkle_root, byteorder="little")
     timestamp_bytes = timestamp.to_bytes(4, byteorder="little")
     bits_bytes = bits.to_bytes(4, byteorder="little")
     nonce_bytes = nonce.to_bytes(4, byteorder="little")
@@ -315,13 +292,13 @@ def get_inv_list(inv_list):
     inv_list_bytes = bytearray()
 
     for type, hash in inv_list:
-        inv_vector = type.to_bytes(4, byteorder="little") + hash.encode(Protocol_Constant.STRING_ENCODING)
+        inv_vector = type.to_bytes(4, byteorder="little") + hash.to_bytes(32, byteorder="little")
         inv_list_bytes = inv_list_bytes + inv_vector
 
     return inv_list_bytes
 
 
-def tx_in_list_to_bytes(tx_in_list):
+def bitcoin_tx_in_list_to_bytes(tx_in_list):
     tx_in_list_bytes = bytearray()
 
     for tx_in in tx_in_list:
@@ -353,7 +330,7 @@ def signature_script_to_bytes(signature_script):
     return signature_script_bytes
 
 
-def tx_out_list_to_bytes(tx_out_list):
+def bitcoin_tx_out_list_to_bytes(tx_out_list):
     tx_out_list_bytes = bytearray()
 
     for tx_out in tx_out_list:
@@ -372,7 +349,7 @@ def pk_script_to_bytes(pk_script):
     return pk_script_bytes
 
 
-def tx_witness_list_to_bytes(tx_witness_list):
+def bitcoin_tx_witness_list_to_bytes(tx_witness_list):
     tx_witness_list_bytes = bytearray()
 
     for tx_witness in tx_witness_list:
@@ -404,7 +381,7 @@ def block_locator_list_to_bytes(block_locator_list):
     block_locator_list_bytes = bytearray()
 
     for block_locator in block_locator_list:
-        block_locator_bytes = block_locator.encode("utf-8")[0:32]
+        block_locator_bytes = block_locator.to_bytes(32, byteorder="little")
         block_locator_list_bytes = block_locator_list_bytes + block_locator_bytes
 
     return block_locator_list_bytes
@@ -434,7 +411,7 @@ def get_network_address_field(service, ip_address, port, is_version=False, adver
             net_addr = net_addr + int(timestamp).to_bytes(4, byteorder='little')
             if math.isnan(timestamp):
                 raise MissingTimestampExeception(
-                    "MissingTimestamp Exception : You have to mention the last time you connect to the node.")
+                    "MissingTimestamp Exception : You have to mention the last time_to_crawl you connect to the node.")
 
     # Service Fields mentionning the service offer by the device associated to the IP Address
     service_byte = service.to_bytes(8, byteorder='little')
@@ -473,10 +450,6 @@ def get_first_4_bytes_payload_checksum(payload):
 """
                     OTHER
 """
-
-
-def get_hash(bytes):
-    return hashlib.sha256(hashlib.sha256(bytes).hexdigest().encode("utf-8")).hexdigest()[0:32]
 
 
 def get_ip_type(ip_addr):

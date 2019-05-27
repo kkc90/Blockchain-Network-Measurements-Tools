@@ -1,0 +1,6 @@
+Reject Message has been received from 51.75.149.207.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

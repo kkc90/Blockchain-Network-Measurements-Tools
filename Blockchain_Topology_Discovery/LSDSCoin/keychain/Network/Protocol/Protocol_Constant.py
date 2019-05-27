@@ -2,7 +2,8 @@ class Protocol_Constant():
     STRING_ENCODING = "utf-8"
     IMPLEMENTED_MESSAGES = ["Version_Message", "Addr_Message", "GetAddr_Message",
                             "Ping_Message", "Pong_Message", "Verack_Message", "Inv_Message", "GetData_Message",
-                            "NotFound_Message", "GetBlock_Message", "GetHeader_Message", "Tx_Message", "Block_Message"]
+                            "NotFound_Message", "GetBlock_Message", "GetHeader_Message", "Tx_Message",
+                            "Bitcoin_Tx_Message", "Block_Message", "MemPool_Message"]
 
     NETWORK_ADDRESS_SIZE = 30  # bytes
     INVENTORY_VECTOR_SIZE = 36  # bytes
@@ -27,9 +28,13 @@ class Protocol_Constant():
     INV_VECTOR_ERROR = 0  # Any data of with this number may be ignored
     INV_VECTOR_MSG_TX = 1  # Hash is related to a transaction
     INV_VECTOR_MSG_BLOCK = 2  # Hash is related to a data block
-    INV_VECTOR_MSG_FILTERED_BLOCK = 3  # Hash of a block header; identical to MSG_BLOCK. Only to be used in getdata message.
+    INV_VECTOR_MSG_FILTERED_BLOCK = 3  # NOT IMPLEMENTED
+
+    # Hash of a block header; identical to MSG_BLOCK. Only to be used in getdata message.
     #                                  Indicates the reply should be a merkleblock message rather than a block message;
     #                                               this only works if a bloom filter has been set.
 
-    INV_VECTOR_MSG_CMPCT_BLOCK = 4  # Hash of a block header; identical to MSG_BLOCK. Only to be used in getdata message.
+    INV_VECTOR_MSG_CMPCT_BLOCK = 4  # NOT IMPLEMENTED
+
+    # Hash of a block header; identical to MSG_BLOCK. Only to be used in getdata message.
     #   Indicates the reply should be a cmpctblock message. See BIP 152 for more info

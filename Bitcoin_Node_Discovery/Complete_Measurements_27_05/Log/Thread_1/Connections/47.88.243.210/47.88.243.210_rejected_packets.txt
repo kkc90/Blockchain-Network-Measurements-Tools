@@ -1,0 +1,6 @@
+Reject Message has been received from 47.88.243.210.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

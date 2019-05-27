@@ -1,0 +1,6 @@
+Reject Message has been received from 147.135.36.32.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

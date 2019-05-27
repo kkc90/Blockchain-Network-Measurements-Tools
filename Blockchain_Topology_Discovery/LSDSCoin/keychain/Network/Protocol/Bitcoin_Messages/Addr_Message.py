@@ -32,7 +32,8 @@ class Addr_Message(Bitcoin_Message):
         return payload
 
     def __eq__(self, other):
-        return self.nb_entries == other.nb_entries and same_ip_table(self.ip_table, other.ip_table)
+        return type(self) is type(other) and self.nb_entries == other.nb_entries and same_ip_table(self.ip_table,
+                                                                                                   other.ip_table)
 
 
 def same_ip_table(iptable1, iptable2):
@@ -83,12 +84,12 @@ def treat_addr_list(nb_entries, addr_list):
 
         i = i + 1
 
-    return ip_table
+    return ip_table, addr_list[i * Protocol_Constant.NETWORK_ADDRESS_SIZE::]
 
 
 def treat_addr_packet(payload):
     nb_entries, entries = treat_variable_length_list(payload)
 
-    ip_table = treat_addr_list(nb_entries, entries)
+    ip_table, payload_left = treat_addr_list(nb_entries, entries)
 
-    return Addr_Message(ip_table)
+    return Addr_Message(ip_table), payload_left

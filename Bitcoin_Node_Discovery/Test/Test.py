@@ -9,12 +9,14 @@ import tty
 from argparse import ArgumentParser
 
 from DNS_Lookup import *
-from Full_Manager_Implementation.Crawler import Crawler as full_manager_crawler
-from IP_Manager_Implementation.Crawler import Crawler as ip_manager_crawler
-from Measurements_Manager_Implementation.Crawler import Crawler as measurement_manager_crawler
-from No_Manager_Implementation.Crawler import Crawler as no_manager_crawler
+
+from Full_Manager_Implementation.Bitcoin_Crawler.Crawler import Crawler as full_manager_crawler
+from IP_Manager_Implementation.Bitcoin_Crawler.Crawler import Crawler as ip_manager_crawler
+from Measurements_Manager_Implementation.Bitcoin_Crawler.Crawler import Crawler as measurement_manager_crawler
+from No_Manager_Implementation.Bitcoin_Crawler.Crawler import Crawler as no_manager_crawler
 
 IMPLEMENTED_TESTS = ["Implementation", "Implementations Comparaison", "Thread Number"]
+
 IMPLEMENTATIONS = {"No_Manager": no_manager_crawler, "Measurements_Manager": measurement_manager_crawler,
                    "IP_Manager": ip_manager_crawler, "Full_Manager": full_manager_crawler}
 
@@ -32,31 +34,28 @@ def main(args):
 
     # TODO Check for errors
     if args.test_type == IMPLEMENTED_TESTS[0]:
-        test_implementations(seed_ips, args.nb_thread, args.implementation, args.network_to_crawl, args.time,
-                             args.display)
+        test_implementations(seed_ips, args.nb_thread, args.nb_connection_per_thread, args.implementation,
+                             args.network_to_crawl, args.time_to_crawl, args.display)
+
     elif args.test_type == IMPLEMENTED_TESTS[1]:
-        if (args.time == -1):
-            t = 10
-        else:
-            t = args.time
-        compare_implementations(seed_ips, args.nb_thread, args.network_to_crawl, t)
+        compare_implementations(seed_ips, args.nb_thread, args.nb_connection_per_thread, args.network_to_crawl,
+                                args.time_to_crawl)
+
     elif args.test_type == IMPLEMENTED_TESTS[2]:
-        if (args.time == -1):
-            t = 10
-        else:
-            t = args.time
-        compare_nb_thread(seed_ips, args.implementation, args.network_to_crawl, t)
+        compare_nb_thread(seed_ips, args.implementation, args.nb_connection_per_thread, args.network_to_crawl,
+                          args.time_to_crawl)
+
     else:
         print("Error: Unvalid Test", file=sys.stderr)
 
 
-def test_implementations(seed_ips, nb_thread, implementation, network_to_crawl, time_to_crawl, display):
+def test_implementations(seed_ips, nb_thread, nb_connection_per_thread, implementation, network_to_crawl,
+                         time_to_crawl, display):
     global IMPLEMENTATIONS
 
     impl = IMPLEMENTATIONS[implementation]
 
-    # TODO deal with example with no connectivity
-    crawler = impl(seed_ips, time_to_crawl, network_to_crawl, nb_thread, display, False)
+    crawler = impl(seed_ips, time_to_crawl, network_to_crawl, nb_thread, nb_connection_per_thread, display)
 
     crawler.start()
     a = time.time()
@@ -64,16 +63,26 @@ def test_implementations(seed_ips, nb_thread, implementation, network_to_crawl, 
     while True:
         if (time.time() - a) > 3:
             a = time.time()
-            if (not crawler.isAlive()):
+
+            if not crawler.isAlive():
                 break
 
-        # TODO Problem deal with no timeout and with printing and with killing if measurements_manager failed.
         char = getch()
 
         if char == "q":
+
+            if args.display is True:
+                crawler.displayer.show_progression()
+
+                crawler.displayer.display_message("User pressed the Exit key. Exiting ...")
+            else:
+                print("User pressed the Exit key. Exiting ...")
+
             crawler.kill()
+
             break
         if char == "r":
+
             if args.display is True:
                 crawler.displayer.pause()
 
@@ -86,19 +95,26 @@ def test_implementations(seed_ips, nb_thread, implementation, network_to_crawl, 
     check_for_error()
 
 
-def compare_implementations(seed_ips, nb_thread, network_to_crawl, time_to_crawl):
+def compare_implementations(seed_ips, nb_thread, nb_connection_per_thread, network_to_crawl, time_to_crawl):
     global IMPLEMENTATIONS
+
+    folder = "Implementations_Study_Measurements/"
+    create_measurements_folder(folder)
+
+    add_test_details(folder, seed_ips, nb_connection_per_thread, network_to_crawl, time_to_crawl,
+                     nb_thread=nb_thread)
 
     for impl_name, impl in zip(IMPLEMENTATIONS.keys(), IMPLEMENTATIONS.values()):
         print("Test on ", str(impl_name), " implementation ...\n")
-        crawler = impl(seed_ips, time_to_crawl, network_to_crawl, nb_thread, False,
-                       False)
+
+        crawler = impl(seed_ips, time_to_crawl, network_to_crawl, nb_thread, nb_connection_per_thread, display=False,
+                       store=False)
 
         crawler.start()
 
         crawler.join()
 
-        measurement_folder = (impl_name + "_Measurements/")
+        measurement_folder = (folder + impl_name + "_Measurements/")
 
         create_measurements_folder(measurement_folder)
 
@@ -106,12 +122,12 @@ def compare_implementations(seed_ips, nb_thread, network_to_crawl, time_to_crawl
 
         crawler.measurements.display_measurements(args.network_to_crawl, details=False)
 
-        check_for_error()
+        # check_for_error()
 
         print("")
 
 
-def compare_nb_thread(seed_ips, implementation, network_to_crawl, time_to_crawl):
+def compare_nb_thread(seed_ips, implementation, nb_connection_per_thread, network_to_crawl, time_to_crawl):
     global IMPLEMENTATIONS
 
     impl = IMPLEMENTATIONS[implementation]
@@ -125,10 +141,16 @@ def compare_nb_thread(seed_ips, implementation, network_to_crawl, time_to_crawl)
     folder = "Thread_Study_Measurements/"
     create_measurements_folder(folder)
 
+    folder = "Thread_Study_Measurements/" + implementation + "/"
+    create_measurements_folder(folder)
+
+    add_test_details(folder, seed_ips, nb_connection_per_thread, network_to_crawl, time_to_crawl,
+                     implementation=implementation)
+
     while thread_to_add > 1:
         print("Test on ", str(implementation), " implementation with ", str(nb_thread), " thread ...\n")
-        crawler = impl(seed_ips, time_to_crawl, network_to_crawl, nb_thread, False,
-                       False)
+        crawler = impl(seed_ips, time_to_crawl, network_to_crawl, nb_thread, nb_connection_per_thread, display=False,
+                       store=False)
 
         crawler.start()
 
@@ -140,25 +162,28 @@ def compare_nb_thread(seed_ips, implementation, network_to_crawl, time_to_crawl)
 
         nb_readed = crawler.measurements.get_nb_readed()
 
-        if (nb_readed < prev_nb_readed):
+        if nb_readed < prev_nb_readed:
             nb_thread = nb_thread - thread_to_add
             thread_to_add = int(thread_to_add / 2)
         else:
             best_crawler_measurements = crawler.measurements
 
-        check_for_error()
+        # check_for_error()
 
         prev_nb_readed = nb_readed
         nb_thread = nb_thread + thread_to_add
 
+    print("\n")
     print("The optimal number of thread is : ", str(nb_thread))
     store_general_measurements(folder, "optimal_nb_thread_measurements", best_crawler_measurements)
 
 
 def check_for_error():
-    logs = os.listdir("Log/")
-    if len(logs) > 0:
-        raise Exception("Error: Log folder is not empty.")
+    if os.path.exists("Log/"):
+        logs = os.listdir("Log/")
+
+        if len(logs) > 0:
+            raise Exception("Error: Log folder is not empty.")
 
 
 def store_general_measurements(folder, file_name, measurements):
@@ -221,6 +246,29 @@ def store_seed_ips(file_name, ips):
     stdout.close()
 
 
+def add_test_details(directory, seed_ips, nb_connection_per_thread, network_to_crawl, time_to_crawl,
+                    nb_thread=None, implementation=None):
+    stdout = open((directory + "Test_Details"), "w+")
+
+    if implementation is not None:
+        stdout.write(("Implementation : " + str(implementation) + "\n"))
+
+    if nb_thread is not None:
+        stdout.write(("Number of Thread : " + str(nb_thread) + "\n"))
+
+    stdout.write(("Number of Connetion per Thread : " + str(nb_connection_per_thread) + "\n"))
+
+    stdout.write(("Network crawled : " + str(network_to_crawl) + "\n"))
+
+    stdout.write(("Expected Crawling Time per tests: " + str(time_to_crawl) + " minutes\n"))
+
+    stdout.write(("Number of Seed IPs : " + str(len(seed_ips)) + "\n"))
+
+    stdout.write(("Seed Ips : " +str(seed_ips) + "\n"))
+
+    stdout.close()
+
+
 def create_measurements_folder(directory="Measurements/"):
     try:
         if not os.path.exists(directory):
@@ -236,16 +284,22 @@ if __name__ == "__main__":
     usage = """
     USAGE:      python3 test.py <options>
     EXAMPLES:   (1) python test.py --test_type "Implementations"
-                    - Launch a test comparing the different implementations of the crawler when each of them are crawling for 10 minutes.
-                (2) python test.py --test_type "Implementations" --time 60
-                    - Launch a test comparing the different implementations of the crawler when each of them are crawling for 60 minutes.
+                    - Launch a test comparing the different implementations of the crawler when each of them 
+                    are crawling for 10 minutes.
+                    
+                (2) python test.py --test_type "Implementations" --time_to_crawl 60
+                    - Launch a test comparing the different implementations of the crawler when each of them 
+                    are crawling for 60 minutes.
+                    
                 (3) python test.py --test_type "Thread_Number"
-                    - Launch a test studying the impact of the number of threads on the crawling for the "No_Manager" implementation.
+                    - Launch a test studying the impact of the number of threads on the crawling for the "No_Manager" 
+                    implementation.
+                    
                 (4) python test.py --test_type "Thread_Number" --implementation "IP_Manager"
-                    - Launch a test studying the impact of the number of threads on the crawling for the "IP_Manager" implementation.
+                    - Launch a test studying the impact of the number of threads on the crawling for the first
+                     "IP_Manager" implementation.
     """
 
-    # Using argparse to select the different setting for the run
     parser = ArgumentParser(usage)
 
     parser.add_argument(
@@ -264,7 +318,7 @@ if __name__ == "__main__":
         """,
         type=str,
         choices=IMPLEMENTATIONS.keys(),
-        default="No_Manager"
+        required="Thread Number" in sys.argv or "Implementation" in sys.argv
     )
 
     parser.add_argument(
@@ -277,11 +331,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        '--time',
+        '--time_to_crawl',
         help="""Time to crawl of each crawlers (minutes).
         """,
         type=float,
-        default=-1,
+        default=10,
     )
 
     parser.add_argument(
@@ -290,6 +344,14 @@ if __name__ == "__main__":
         """,
         type=int,
         default=10
+    )
+
+    parser.add_argument(
+        '--nb_connection_per_thread',
+        help="""Number of connection per thread used by the crawler.
+        """,
+        type=int,
+        default=1
     )
 
     parser.add_argument(
@@ -307,6 +369,7 @@ if __name__ == "__main__":
         dest='display',
         action='store_false'
     )
+
     parser.set_defaults(display=True)
 
     args = parser.parse_args()

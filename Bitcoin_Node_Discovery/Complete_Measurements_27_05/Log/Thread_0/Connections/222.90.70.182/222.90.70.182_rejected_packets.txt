@@ -1,0 +1,6 @@
+Reject Message has been received from 222.90.70.182.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

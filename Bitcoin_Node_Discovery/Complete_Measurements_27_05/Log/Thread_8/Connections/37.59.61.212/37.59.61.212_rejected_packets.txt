@@ -1,0 +1,6 @@
+Reject Message has been received from 37.59.61.212.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

@@ -1,0 +1,6 @@
+Reject Message has been received from 80.203.137.26.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

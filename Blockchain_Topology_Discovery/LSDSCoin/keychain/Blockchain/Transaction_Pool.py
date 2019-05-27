@@ -1,10 +1,22 @@
-class Transaction_Pool:
-    def __init__(self, transaction_pool=None):
+import datetime
 
-        if transaction_pool is None:
-            self._transaction_pool = set()
+class Transaction_Pool:
+    def __init__(self, ):
+
+        self._transaction_pool = set()
+        self._transaction_hashes = set()
+
+    def contains(self, transaction):
+        if transaction in self._transaction_pool:
+            return True
         else:
-            self._transaction_pool = transaction_pool
+            return False
+
+    def containsHash(self, transaction_hash):
+        if transaction_hash in self._transaction_hashes:
+            return True
+        else:
+            return False
 
     def isEmpty(self):
         return not len(self._transaction_pool) > 0
@@ -12,24 +24,27 @@ class Transaction_Pool:
     def getTransactionPool(self):
         return self._transaction_pool
 
+    def getTransactionPoolHashes(self):
+        return self._transaction_hashes
+
     def getNbTransactions(self):
         return len(self._transaction_pool)
 
     def removeTransaction(self, transaction):
         if transaction in self._transaction_pool:
             self._transaction_pool.remove(transaction)
+            self._transaction_hashes.remove(transaction.__hash__())
 
-    def valid_transaction_pool(self):
-        for block in self._blocks:
-            transactions = block.getTransactions()
+    def getTransactionFromHash(self, transaction_hash):
+        if transaction_hash in self._transaction_hashes:
+            transaction_list = set(self._transaction_pool)
+            for transaction in transaction_list:
+                if transaction_hash == transaction.__hash__():
+                    return transaction
 
-            for t in transactions:
-                if t in self._transaction_pool:
-                    return False
+        return None
 
-        return True
-
-    def get_transactions(self, nb):
+    def getTransactions(self, nb):
 
         transaction_list = list()
         i = 0
@@ -50,7 +65,6 @@ class Transaction_Pool:
 
     def add_transaction(self, transaction):
         """Adds a transaction to your current list of transactions,
-        and broadcasts it to your Blockchain network.
 
         If the `mine` method is called, it will collect the current list
         of transactions, and attempt to mine a block with those.
@@ -59,3 +73,26 @@ class Transaction_Pool:
         public_key = transaction.getOrigin()
         transaction.verify(public_key)
         self._transaction_pool.add(transaction)
+        self._transaction_hashes.add(transaction.__hash__())
+
+    def __eq__(self, other):
+        trans_pool = other.getTransactionPool()
+
+        if len(trans_pool) != len(self._transaction_pool):
+            return False
+
+        for transaction in self._transaction_pool:
+            if transaction in trans_pool:
+                continue
+            else:
+                return False
+
+        return True
+
+    def __str__(self):
+        string = ""
+
+        for transaction in self._transaction_pool:
+            string += "\t" + str(transaction) + "\n"
+
+        return string + "\n"

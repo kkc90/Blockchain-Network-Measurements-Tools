@@ -1,0 +1,6 @@
+Reject Message has been received from 199.188.204.25.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

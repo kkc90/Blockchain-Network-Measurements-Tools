@@ -1,0 +1,6 @@
+Reject Message has been received from 51.68.36.58.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

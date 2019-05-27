@@ -1,0 +1,6 @@
+Reject Message has been received from 95.216.1.124.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

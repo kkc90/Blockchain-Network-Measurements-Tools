@@ -1,0 +1,6 @@
+Reject Message has been received from 79.207.120.54.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

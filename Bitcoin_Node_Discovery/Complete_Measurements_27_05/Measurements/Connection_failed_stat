@@ -1,0 +1,6 @@
+BrokenSocketException('[Errno 111] Connection refused',) : 15561
+SocketTimeoutException('timed out',) : 111859
+HandShakeFailureException('HandshakeFailure Exception: Fail to execute the handshake (Timeout).',) : 3930
+BrokenSocketException('[Errno 113] No route to host',) : 7129
+BrokenSocketException('[Errno 101] Network is unreachable',) : 162
+BrokenSocketException('[Errno 104] Connection reset by peer',) : 3

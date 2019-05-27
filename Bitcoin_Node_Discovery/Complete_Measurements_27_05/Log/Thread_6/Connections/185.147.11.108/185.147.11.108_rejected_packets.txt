@@ -1,0 +1,6 @@
+Reject Message has been received from 185.147.11.108.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

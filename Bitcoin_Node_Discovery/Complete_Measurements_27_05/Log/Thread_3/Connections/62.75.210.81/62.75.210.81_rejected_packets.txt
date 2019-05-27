@@ -1,0 +1,6 @@
+Reject Message has been received from 62.75.210.81.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

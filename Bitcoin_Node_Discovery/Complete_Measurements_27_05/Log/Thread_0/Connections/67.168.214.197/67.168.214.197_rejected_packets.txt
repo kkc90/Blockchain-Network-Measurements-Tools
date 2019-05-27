@@ -1,0 +1,6 @@
+Reject Message has been received from 67.168.214.197.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

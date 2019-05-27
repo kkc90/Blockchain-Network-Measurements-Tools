@@ -44,7 +44,6 @@ class DNS_Lookup:
 
                 DNS_IP = list(set().union(DNS_IP, list(temp)))
 
-
             except dns.resolver.Timeout:
                 print("Error : Query to DNS server ", i, "Failed : Timeout.")
             except dns.resolver.NXDOMAIN:

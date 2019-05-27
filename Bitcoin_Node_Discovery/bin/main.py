@@ -6,51 +6,59 @@ import time
 import tty
 from argparse import ArgumentParser
 
-from Crawler import Crawler
+from Bitcoin_Crawler import Crawler
 from DNS_Lookup import DNS_Lookup
 
 
 def main(args):
-    seed_file = args.seed_file
-
-    if seed_file is None:
+    if args.seed_file is None:
         dns_lookup = DNS_Lookup()
         seed_ips = dns_lookup.get_DNS_IP()
+
     else:
-        seed_ips = get_ips_from_file(seed_file)
+        seed_ips = get_ips_from_file(args.seed_file)
 
-    # TODO deal with example with no connectivity
-    crawler = Crawler(seed_ips, args.time, args.network_to_crawl, args.nb_threads, args.display,
-                      args.display_progression)
+    if len(seed_ips) > 0:
+        crawler = Crawler.Crawler(seed_ips, args.time_to_crawl, args.network_to_crawl, args.nb_threads,
+                                  args.nb_connection_per_thread, args.display, args.display_progression,
+                                  args.monitor_connections)
 
-    crawler.start()
-    a = time.time()
+        crawler.start()
+        a = time.time()
 
-    while True:
-        if (time.time() - a) > 3:
-            a = time.time()
-            if (not crawler.isAlive()):
+        while True:
+            if (time.time() - a) > 3:
+                a = time.time()
+
+                if not crawler.has_been_killed():
+                    break
+
+            char = getch()
+
+            if char == "q":
+
+                if args.display is True:
+                    crawler.displayer.show_progression()
+
+                    crawler.displayer.display_message("User pressed the Exit key. Exiting ...")
+                else:
+                    print("User pressed the Exit key. Exiting ...")
+
+                crawler.kill()
+
                 break
+            if char == "r":
 
-        # TODO Problem deal with no timeout and with printing and with killing if measurements_manager failed.
-        char = getch()
+                if args.display is True:
+                    crawler.displayer.pause()
 
-        if char == "q":
-            if args.display is True:
-                crawler.displayer.display_message("You pressed the Exit key. Exiting ...")
-                crawler.displayer.show_progression()
-            else:
-                print("You pressed the Exit key. Exiting ...")
-            crawler.kill()
-            break
-        if char == "r":
-            if args.display is True:
-                crawler.displayer.pause()
+        crawler.join()
 
-    crawler.join()
+        crawler.measurements.store_measurements(end=True)
+        crawler.measurements.display_measurements(args.network_to_crawl)
 
-    crawler.measurements.store_measurements(end=True)
-    crawler.measurements.display_measurements(args.network_to_crawl)
+    else:
+        print("Crawler need a valid set of seed ips to boostrap.")
 
 
 def getch():
@@ -87,7 +95,7 @@ if __name__ == "__main__":
                     - Launch the bitcoin network crawler with 10 threads and not displaying any progression.
                 (4) python main.py --display_progression True
                     - Launch the bitcoin network crawler with 10 threads and displaying each thread's progression.
-                (5) python main.py --time 10
+                (5) python main.py --time_to_crawl 10
                     - Launch the bitcoin network crawler with 10 threads for 10 minutes.
     """
 
@@ -103,7 +111,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        '--time',
+        '--nb_connection_per_thread',
+        help="""Number of connection per thread used by the crawler.
+        """,
+        type=int,
+        default=1
+    )
+
+    parser.add_argument(
+        '--time_to_crawl',
         help="""Time to crawl.
         """,
         type=float,
@@ -117,7 +133,6 @@ if __name__ == "__main__":
         dest='display',
         action='store_false'
     )
-    parser.set_defaults(display=True)
 
     parser.add_argument(
         '--display_progression',
@@ -144,7 +159,17 @@ if __name__ == "__main__":
         default=None,
     )
 
+    parser.add_argument(
+        '--monitor_connections',
+        help="""Whether or not to record all the packets exchanged with crawled peers and other connection information.
+        """,
+        dest='monitor_connections',
+        action='store_true'
+    )
+
+    parser.set_defaults(display=True)
     parser.set_defaults(display_progression=False)
+    parser.set_defaults(monitor_connections=False)
 
     args = parser.parse_args()
 

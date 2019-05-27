@@ -28,7 +28,7 @@ _install_requires = [
     "hashlib",
     "numpy",
     "requists",
-    "time",
+    "time_to_crawl",
     "requests"
 ]
 
@@ -42,4 +42,4 @@ _parameters = {
     "version": _version
 }
 
-setup(**_parameters)
+setup(**_parameters, install_requires=['requests'])

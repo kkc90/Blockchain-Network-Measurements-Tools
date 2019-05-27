@@ -1,0 +1,6 @@
+Reject Message has been received from 72.207.116.245.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

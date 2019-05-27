@@ -1,0 +1,6 @@
+Reject Message has been received from 159.100.247.16.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

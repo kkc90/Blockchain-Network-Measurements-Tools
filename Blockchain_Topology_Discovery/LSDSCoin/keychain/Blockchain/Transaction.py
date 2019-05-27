@@ -6,15 +6,15 @@ from cryptography.hazmat.primitives.asymmetric import utils, padding
 
 
 class Transaction:
-    def __init__(self, key, value, origin, timestamp):
+    def __init__(self, key, value, origin, timestamp, signature=None):
         """A transaction, in our KV setting. A transaction typically involves
         some key, value and an origin (the one who put it onto the storage).
         """
         self._key = key
         self._value = value
         self._origin = origin
-        self._timestamp = timestamp
-        self._signature = None
+        self._timestamp = int(timestamp)
+        self._signature = signature
 
     def getValue(self):
         return self._value
@@ -35,7 +35,7 @@ class Transaction:
         chosen_hash = hashes.SHA256()
         hasher = hashes.Hash(chosen_hash, default_backend())
         hasher.update(repr(self._value).encode("utf-8"))
-        hasher.update(repr(self._origin).encode("utf-8"))
+        hasher.update(repr(self._origin.public_numbers().n).encode("utf-8"))
         hasher.update(repr(self._key).encode("utf-8"))
         hasher.update(repr(self._timestamp).encode("utf-8"))
         digest = hasher.finalize()
@@ -53,7 +53,7 @@ class Transaction:
         chosen_hash = hashes.SHA256()
         hasher = hashes.Hash(chosen_hash, default_backend())
         hasher.update(repr(self._value).encode("utf-8"))
-        hasher.update(repr(self._origin).encode("utf-8"))
+        hasher.update(repr(self._origin.public_numbers().n).encode("utf-8"))
         hasher.update(repr(self._key).encode("utf-8"))
         hasher.update(repr(self._timestamp).encode("utf-8"))
         digest = hasher.finalize()
@@ -68,13 +68,13 @@ class Transaction:
             utils.Prehashed(chosen_hash)
         )
 
-    def encode(self, string):
+    def byte_hash(self):
         hasher = hashlib.sha256()
-        hasher.update(repr(self._key).encode(string))
-        hasher.update(repr(self._value).encode(string))
-        hasher.update(repr(self._origin).encode(string))
-        hasher.update(repr(self._timestamp).encode(string))
-        hasher.update(repr(self._signature).encode(string))
+        hasher.update(repr(self._key).encode("utf-8"))
+        hasher.update(repr(self._value).encode("utf-8"))
+        hasher.update(repr(self._origin.public_numbers().n).encode("utf-8"))
+        hasher.update(repr(self._timestamp).encode("utf-8"))
+        hasher.update(repr(self._signature).encode("utf-8"))
 
         return hasher.digest()
 
@@ -82,13 +82,14 @@ class Transaction:
         hasher = hashlib.sha256()
         hasher.update(repr(self._key).encode("utf-8"))
         hasher.update(repr(self._value).encode("utf-8"))
-        hasher.update(repr(self._origin).encode("utf-8"))
+        hasher.update(repr(self._origin.public_numbers().n).encode("utf-8"))
         hasher.update(repr(self._timestamp).encode("utf-8"))
         hasher.update(repr(self._signature).encode("utf-8"))
 
         return int(hasher.hexdigest(), 16)
 
-
     def __eq__(self, other):
-        return self._key == other.getKey() and self._value == other.getValue() and self._origin == other.getOrigin() \
-               and self._timestamp == other.getTimestamp() and self._signature == other.getSignature()
+        return self.__hash__() == other.__hash__()
+
+    def __str__(self):
+        return self._key + " - " + self._value

@@ -1,0 +1,6 @@
+Reject Message has been received from 128.78.48.134.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+

@@ -1,0 +1,6 @@
+Reject Message has been received from 81.217.74.112.
+
+Type : version
+CCODE : 18
+Reason : Duplicate version message
+
