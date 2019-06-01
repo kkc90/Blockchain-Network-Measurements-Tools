@@ -1,0 +1,9 @@
+SocketTimeoutException('timed out',) : 151434
+HandShakeFailureException('HandshakeFailure Exception: Fail to execute the handshake (Timeout).',) : 4595
+BrokenSocketException('[Errno 111] Connection refused',) : 17589
+BrokenSocketException('[Errno 113] No route to host',) : 7901
+BrokenSocketException('[Errno 101] Network is unreachable',) : 297
+BrokenSocketException('[Errno 13] Permission denied',) : 4166
+BrokenSocketException('[Errno 104] Connection reset by peer',) : 7
+BrokenSocketException('[Errno 92] Protocol not available',) : 1
+BrokenSocketException('[Errno 22] Invalid argument',) : 1
