@@ -1,6 +1,0 @@
-Reject Message has been received from 88.198.39.205.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

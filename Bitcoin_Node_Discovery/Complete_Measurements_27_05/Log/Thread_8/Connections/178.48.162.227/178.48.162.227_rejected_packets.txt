@@ -1,6 +1,0 @@
-Reject Message has been received from 178.48.162.227.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

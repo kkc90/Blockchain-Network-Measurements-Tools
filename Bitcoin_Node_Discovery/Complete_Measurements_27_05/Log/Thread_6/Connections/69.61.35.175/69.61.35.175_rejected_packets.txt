@@ -1,6 +1,0 @@
-Reject Message has been received from 69.61.35.175.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

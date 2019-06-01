@@ -1,6 +1,0 @@
-Reject Message has been received from 79.137.40.191.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

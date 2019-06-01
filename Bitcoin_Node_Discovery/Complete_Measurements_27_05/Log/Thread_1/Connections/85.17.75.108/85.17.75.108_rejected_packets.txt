@@ -1,6 +1,0 @@
-Reject Message has been received from 85.17.75.108.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

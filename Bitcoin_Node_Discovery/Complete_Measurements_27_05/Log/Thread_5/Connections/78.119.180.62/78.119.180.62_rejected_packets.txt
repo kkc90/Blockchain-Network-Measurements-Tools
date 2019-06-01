@@ -1,6 +1,0 @@
-Reject Message has been received from 78.119.180.62.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

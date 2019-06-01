@@ -1,6 +1,0 @@
-Reject Message has been received from 82.64.125.154.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

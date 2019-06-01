@@ -1,6 +1,0 @@
-Reject Message has been received from 213.37.92.163.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

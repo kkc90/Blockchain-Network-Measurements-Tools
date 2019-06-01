@@ -1,6 +1,0 @@
-Reject Message has been received from 35.236.173.54.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

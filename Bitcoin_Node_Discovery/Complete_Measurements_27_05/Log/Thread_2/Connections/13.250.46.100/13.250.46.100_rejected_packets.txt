@@ -1,6 +1,0 @@
-Reject Message has been received from 13.250.46.100.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

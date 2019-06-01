@@ -1,6 +1,0 @@
-Reject Message has been received from 113.10.156.37.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-

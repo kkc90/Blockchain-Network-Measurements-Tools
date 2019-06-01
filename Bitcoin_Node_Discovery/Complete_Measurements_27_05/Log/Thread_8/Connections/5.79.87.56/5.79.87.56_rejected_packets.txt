@@ -1,6 +1,0 @@
-Reject Message has been received from 5.79.87.56.
-
-Type : version
-CCODE : 18
-Reason : Duplicate version message
-
