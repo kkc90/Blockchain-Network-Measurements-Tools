@@ -1,2 +1,2 @@
-# Bitcoin_Network_Discovery
-Bitcoin's Network Measurements tools
+# Blockchain_Network_Discovery
+Blockchain's Network Measurements tools
